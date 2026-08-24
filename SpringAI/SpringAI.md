@@ -232,15 +232,21 @@ public class SpringAIController {
 package org.example.config;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class AIConfig {
+public class ChatClientConfigs {
 
     @Bean
-    public ChatClient chatClient(ChatClient.Builder builder) {
-        return builder.defaultSystem("你是文档整理助手，可以生成文档、总结文档内容、解析文档属性等等相关功能业务员").build();
+    public ChatClient chatClient(OpenAiChatModel chatModel, ChatMemory chatMemory) {
+        return ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultSystem("你是文档整理助手，可以生成文档、总结文档内容、解析文档属性等等相关功能业务.")
+                .build();
     }
 }
 ~~~
@@ -556,4 +562,90 @@ public class SpringAIController {
 - 测试：http://localhost:8080/prompt?name=lzy&voice=中文
 
 
+
+# 四、历史会话
+
+- 在构建智能对话系统时，保持对话上下文的连贯性是提升用户体验的关键。Spring AI 框架提供了强大的 Chat Memory 机制，支持多种存储方式来持久化对话历史。本文将深入解析 Spring AI Chat Memory 的核心机制，并通过实际代码演示如何实现基于本地内存（Local）和数据库（JDBC）的两种存储方案
+
+
+
+## 1、Chat Memory核心机制
+
+- 核心组件解析
+
+  - **ChatMemory 接口**：提供统一的对话记忆管理抽象
+
+  - **ChatMemoryRepository**：负责底层存储操作
+
+  - **MessageChatMemoryAdvisor**：基于 Advisor 模式的透明化处理
+
+  - **MessageWindowChatMemory**：支持消息窗口限制的实现
+
+
+
+## 2、本地存储
+
+- 配置类
+  - `MessageChatMemoryAdvisor`：采用 Advisor 模式，自动处理消息的存储和检索
+  - `defaultAdvisors`：为 ChatClient 配置默认的 advisor，使 memory 功能透明化
+
+~~~java
+package org.example.config;
+
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class ChatClientConfigs {
+
+    @Bean
+    public ChatClient chatClient(OpenAiChatModel chatModel, ChatMemory chatMemory) {
+        return ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultSystem("你是文档整理助手，可以生成文档、总结文档内容、解析文档属性等等相关功能业务.")
+                .build();
+    }
+}
+~~~
+
+- controller
+  - 通过 `ChatMemory.CONVERSATION_ID` 参数指定对话会话 ID
+  - ChatClient 自动从 memory 中检索历史消息并添加到 prompt 中
+  - 响应后自动将对话记录存储到 memory 中
+
+~~~java
+package org.example.controller;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
+
+@RestController
+@RequiredArgsConstructor // 为所有 final 未初始化字段生成构造器
+public class SpringAIController {
+
+    private final ChatClient chatClient;
+
+    // 模拟一个会话 ID
+    private static final String CONVERSATION_ID = "naming-20250528";
+
+    @GetMapping(value="/chatStream", produces="text/html;charset=UTF-8")
+    public Flux<String> chatStream(@RequestParam(value = "prompt", defaultValue = "hello") String prompt, @RequestParam(value = "conversationId") String conversationId) {
+        return chatClient.prompt()
+                .user(prompt)
+                // 关键：通过 advisor 参数指定对话ID
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId == null ? CONVERSATION_ID : conversationId))
+                .stream()
+                .content();
+    }
+}
+~~~
 
