@@ -565,11 +565,43 @@ public class SpringAIController {
 
 # 四、历史会话
 
+https://blog.51cto.com/u_15239532/14532097
+
+## 1、介绍
+
 - 在构建智能对话系统时，保持对话上下文的连贯性是提升用户体验的关键。Spring AI 框架提供了强大的 Chat Memory 机制，支持多种存储方式来持久化对话历史。本文将深入解析 Spring AI Chat Memory 的核心机制，并通过实际代码演示如何实现基于本地内存（Local）和数据库（JDBC）的两种存储方案
 
 
 
-## 1、Chat Memory核心机制
+### 1.1 什么是 ChatMemory
+
+- ChatMemory 是 Spring AI 中管理聊天历史的核心组件。它的职责是：
+
+  - 存储：记录用户和 AI 的对话历史
+
+  - 检索：在生成新的回答时，将相关的历史消息加入上下文
+
+  - 隔离：通过对话 ID（Conversation ID）实现不同用户/会话的隔离
+
+  - 管理：实现滑动窗口、记忆容量控制等策略
+
+
+
+### 1.2 Chat Memory核心机制
+
+- Spring AI Chat Memory 采用分层架构设计：
+
+┌─────────────────────────────────────────────┐
+│           ChatClient Layer                    │  对话接口
+├─────────────────────────────────────────────┤
+│         ChatMemory Advisor              │ 基于 Advisor 模式的透明化处理
+├─────────────────────────────────────────────┤
+│         ChatMemory Interface           │ChatMemory 接口
+├─────────────────────────────────────────────┤
+│      ChatMemoryRepository Layer │底层存储实现
+├─────────────────────────────────────────────┤
+│    Storage Layer (Local/JDBC)         │存储介质（本地/数据库）
+└─────────────────────────────────────────────┘
 
 - 核心组件解析
 
@@ -583,7 +615,96 @@ public class SpringAIController {
 
 
 
-## 2、本地存储
+### 1.3 ChatMemory 的架构
+
+- Spring AI 中 ChatMemory 的架构分为三层：
+
+  -   ChatMemory 接口
+    - add()
+    - get()              
+    - clear()   
+  - MessageWindowChatMemory（实现滑动窗口策略）
+    - 限制消息数量 
+    - FIFO 淘汰机    
+
+  -  ChatMemoryRepository （底层存储实现）
+    - InMemoryChatMemoryRepository     
+    - JdbcChatMemoryRepository         
+    - ElasticsearchChatMemoryRepository
+
+
+
+### 1.4 核心接口
+
+~~~java
+public interface ChatMemory {
+    // 向指定对话添加消息
+    void add(String conversationId, List<Message> messages);
+
+    // 从指定对话获取消息
+    List<Message> get(String conversationId, int lastN);
+
+    // 清空指定对话的消息
+    void clear(String conversationId);
+}
+
+public interface ChatMemoryRepository {
+    // 这是真正的存储实现接口
+    void add(String conversationId, Message message);
+
+    List<Message> get(String conversationId, int lastN);
+
+    void clear(String conversationId);
+}
+~~~
+
+
+
+## 2、内存实现
+
+### 2.1 介绍
+
+- InMemoryChatMemoryRepository 是最简单的实现，所有对话历史都存储在应用内存中。它内部维护一个 ConcurrentHashMap，键是对话 ID（conversationId），值是该对话的所有消息列表：
+
+~~~java
+// 内部结构示意
+private Map<String, List<Message>> conversationMap;
+
+// conversationId -> 对话消息列表
+// "user123_chat1" -> [Message1, Message2, Message3, ...]
+// "user456_chat2" -> [Message4, Message5, ...]
+~~~
+
+- 当调用 add() 方法时，InMemoryChatMemoryRepository 将新消息追加到对应 conversationId 的列表中：
+
+~~~bash
+Timeline:
+时刻 1: user123 问"今天几号?"
+→ store: {"user123": [UserMessage("今天几号?")]}
+
+时刻 2: AI 回答"今天是 2月12号"
+→ store: {"user123": [UserMessage("今天几号?"), AssistantMessage("今天是 2月12号")]}
+
+时刻 3: user123 问"天气怎么样?"
+→ store: {"user123": [UserMessage("今天几号?"), AssistantMessage("今天是 2月12号"), UserMessage("天气怎么样?")]}
+~~~
+
+- 当调用 get(conversationId, lastN) 方法时，它返回最近 N 条消息。这里的 lastN 通常由 MessageWindowChatMemory 指定。
+- 优点：
+  - 实现简单，无需外部依赖（无需数据库、Redis 等）
+
+  - 速度快，完全在内存中，无 I/O 操作
+  - 开发测试方便，快速验证想法
+- 缺点：
+
+  - 应用重启后数据丢失，用户的对话历史无法恢复
+  - 无法在分布式环境中共享，多个应用实例之间无法共享对话历史
+  - 内存占用随着对话增多而增加，长期运行的应用可能面临内存压力
+  - 无法处理大规模用户场景
+
+
+
+### 2.2 实现
 
 - 配置类
   - `MessageChatMemoryAdvisor`：采用 Advisor 模式，自动处理消息的存储和检索
@@ -595,12 +716,25 @@ package org.example.config;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class ChatClientConfigs {
+
+    @Bean
+    public ChatMemory chatMemory() {
+        // 创建内存存储库
+        InMemoryChatMemoryRepository inMemoryChatMemoryRepository = new InMemoryChatMemoryRepository();
+        // 包装成 MessageWindowChatMemory，默认窗口大小为 10 条消息
+        return MessageWindowChatMemory.builder()
+                .chatMemoryRepository(inMemoryChatMemoryRepository)
+                .maxMessages(10)
+                .build();
+    }
 
     @Bean
     public ChatClient chatClient(OpenAiChatModel chatModel, ChatMemory chatMemory) {
@@ -648,4 +782,115 @@ public class SpringAIController {
     }
 }
 ~~~
+
+
+
+### 2.3 InMemoryChatMemoryRepository实现逻辑
+
+~~~java
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
+
+package org.springframework.ai.chat.memory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.util.Assert;
+
+public final class InMemoryChatMemoryRepository implements ChatMemoryRepository {
+    Map<String, List<Message>> chatMemoryStore = new ConcurrentHashMap();
+
+    public List<String> findConversationIds() {
+        return new ArrayList(this.chatMemoryStore.keySet());
+    }
+
+    public List<Message> findByConversationId(String conversationId) {
+        Assert.hasText(conversationId, "conversationId cannot be null or empty");
+        List<Message> messages = (List)this.chatMemoryStore.get(conversationId);
+        return (List<Message>)(messages != null ? new ArrayList(messages) : List.of());
+    }
+
+    public void saveAll(String conversationId, List<Message> messages) {
+        Assert.hasText(conversationId, "conversationId cannot be null or empty");
+        Assert.notNull(messages, "messages cannot be null");
+        Assert.noNullElements(messages, "messages cannot contain null elements");
+        this.chatMemoryStore.put(conversationId, messages);
+    }
+
+    public void deleteByConversationId(String conversationId) {
+        Assert.hasText(conversationId, "conversationId cannot be null or empty");
+        this.chatMemoryStore.remove(conversationId);
+    }
+}
+~~~
+
+- 一个基于内存的聊天记录存储库：
+
+  - 功能：管理多个对话的聊天消息，支持增删查操作
+
+  - 核心结构：使用ConcurrentHashMap存储<对话ID, 消息列表>映射
+
+  - 线程安全：通过并发集合保证多线程环境下的数据一致性
+
+- 主要方法：
+  - findConversationIds()：获取所有对话ID
+  - findByConversationId()：根据ID查询消息列表
+  - saveAll()：保存指定对话的所有消息
+  - deleteByConversationId()：删除指定对话的全部记录
+
+- 参数校验：使用Spring的Assert工具确保输入有效性
+
+
+
+## 3、数据库实现
+
+### 3.1 前置准备
+
+- pom文件
+
+~~~xml
+<!-- pom.xml -->
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-starter-model-chat-memory-repository-jdbc</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>mysql</groupId>
+        <artifactId>mysql-connector-java</artifactId>
+        <version>8.0.33</version>
+    </dependency>
+</dependencies>
+~~~
+
+- 数据库表结构
+
+~~~sql
+-- schema-mysql.sql
+CREATE TABLE IF NOT EXISTS SPRING_AI_CHAT_MEMORY (
+    conversation_id VARCHAR(36) NOT NULL,
+    content TEXT NOT NULL,
+    type VARCHAR(10) NOT NULL,
+    `timestamp` TIMESTAMP NOT NULL,
+    CONSTRAINT TYPE_CHECK CHECK (type IN ('USER', 'ASSISTANT', 'SYSTEM', 'TOOL'))
+);
+
+CREATE INDEX IDX_SPRING_AI_CHAT_MEMORY ON SPRING_AI_CHAT_MEMORY(conversation_id, `timestamp`);
+~~~
+
+- **表结构解析**：
+  - `conversation_id`：对话会话标识，支持多会话隔离
+  - `content`：消息内容
+  - `type`：消息类型（用户、助手、系统、工具）
+  - `timestamp`：时间戳，用于消息排序
+  - 复合索引：优化按会话 ID 和时间的查询性能
+
+
+
+### 3.2 实现ChatMemoryService
 
