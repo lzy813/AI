@@ -382,7 +382,7 @@
 
 - 在LangChain v0.3版本中，提到了Model I/O，包括输入提示(Format)、调用模型(Predict)、输出解析(Parse)。分别对应着Prompt Template ， Model 和Output Parser 
 
-![modelIO](图片/modelIO.png)
+![modelIO](图片/ModelIO.png)
 
 - 关于模型调用模块，如今对话模型已经是主要形式。从历史上解读：
   - 在GPT-3时代，大模型以补全模型为主，只能以类似“成语接龙”的方式对文本进行补全，并且实际运行效果也非常不稳定。此时LangChain借助一些高层封装的API，能够让模型完成对话、调用外部工具、甚至是结构化输出等功能，为开发者提供了极大的便利。
