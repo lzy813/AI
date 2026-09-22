@@ -118,7 +118,7 @@
 
 ### 2.3 主要模块
 
-![主要模块](图片/主要模块.PNG)
+![主要模块](图片/主要模块.png)
 
 - **langchain-core**：官方推荐的核心 API。比如 Runnable, BaseMessage 等
 - **langchain-classic**：冗余代码或不推荐使用的经典 API 移到此。比如 0.x 中常用而 1.x 移除的 API 都在这里。
@@ -143,7 +143,7 @@
 
 ## 3、LangChain四大支柱
 
-![四大支柱](图片/四大支柱.PNG)
+![四大支柱](图片/四大支柱.png)
 
 - 截至 2025 年 11 月，LangChain 已从一个独立的开发框架，成长为一个覆盖智能体系统全生命周期的技术生态。该生态由四大核心支柱构成：LangChain、LangGraph、Deep Agent 与 LangSmith。
 
@@ -206,7 +206,7 @@
   - LangChain = 能力抽象层（LLM / Tool / Message 标准化），负责 “有什么能力”
   - LangGraph = 执行与编排层（状态机 / 工作流 / 多 Agent 系统），负责 “怎么跑”
 
-![LangGraph比较](图片/LangGraph比较.PNG)
+![LangGraph比较](图片/LangGraph比较.png)
 
 
 
@@ -234,7 +234,7 @@
 
 - 从LangChain快速搭建，用LangGraph打磨生产稳定性，再用Deep Agents赋予Agent更强的自主能力，这才是完整的LangChain生态
 
-![三者关系](图片/三者关系.PNG)
+![三者关系](图片/三者关系.png)
 
 
 
@@ -254,7 +254,7 @@
 
   - **团队协作**：支持多人共享测试集与调用记录。
 
-- LangSmith 官网：https://www.langchain.com/langsmith`
+- LangSmith 官网：https://www.langchain.com/langsmith
 
 - LangSmith 的引入使得智能体的开发、调试与运维形成了完整的质量闭环
 
@@ -274,7 +274,7 @@
 
 - 3、何为RAG：Retrieval-Augmented Generation（检索增强生成）
 
-![RAG](图片/RAG.PNG)
+![RAG](图片/RAG.png)
 
 - 4、这些过程中的难点：1、文件解析 2、文件切割 3、知识检索 4、知识重排序
 
@@ -295,7 +295,7 @@
 - 充分利用 LLM 的推理决策能力，通过增加规划、记忆和工具调用的能力，构造一个能够独立思考、逐步完成给定目标的 Agent（智能体）
 - 一个数学公式来表示：<font color="red">**Agent = LLM + Planning + Tools + Memory + Action**</font>
 
-![Agent](图片/Agent.PNG)
+![Agent](图片/Agent.png)
 
 - 类比：打车到西藏玩
 
@@ -327,7 +327,7 @@
 - Prompt是操作大模型的唯一接口
 - 当人看：你说一句，ta回一句，你再说一句，ta再回一句...
 
-![纯Prompt场景](图片/纯Prompt场景.PNG)
+![纯Prompt场景](图片/纯Prompt场景.png)
 
 
 
@@ -436,7 +436,7 @@
 ## 2、使用模型提供商库初始化
 
 - 在 LangChain 中初始化模型，主要可以通过直接<font color="red">**使用特定的 Model Class**</font> 和<font color="red">**使用统一的 init_chat_model 函数**</font>这两种方式来实现。
-- 这里先讲方式 1，这种方式最直接。LangChain 为一些大模型供应商提供了专门的 Model 类，导入对应的具体类（如 `ChatOpenAI`、`ChatAnthropic`、`ChatDeepSeek`、`ChatOllama`、`ChatHunyuan`、`ChatTongyi`、`ChatZhipuAI`）并进行实例化。
+- 这里先讲方式 1，这种方式最直接。LangChain 为一些大模型供应商提供了专门的 Model 类，导入对应的具体类（如 ChatOpenAI、ChatAnthropic、ChatDeepSeek、ChatOllama、ChatHunyuan、ChatTongyi、ChatZhipuAI）并进行实例化。
 - 官网链接：https://reference.langchain.com/python/langchain-community/chat-models
 
 
@@ -909,7 +909,7 @@ print(model.invoke("你好，用一句话回答"))
 - OpenRouter平台的DeepSeek模型：可以调用ChatOpenRouter()、ChatOpenAI()、init_chat_model()三种方式
 - CloseAPI平台的DeepSeek模型：可以调用ChatOpenAI()、init_chat_model() 两种方式
 
-![init_chat_model小结](图片/init_chat_model小结.PNG)
+![init_chat_model小结](图片/init_chat_model小结.png)
 
 
 
@@ -1488,11 +1488,11 @@ AIMessage(
 - 注意：流式输出依赖于模型供应商对于流式输出的支持
 - 基本语法
   - **end=''**
-    - 默认情况下，`print()`会在输出内容后自动添加换行符（`\n`）。
-    - 通过设置`end=''`，可以将原本的换行符替换为空字符串，使输出内容不换行，直接衔接下一次打印的内容。
+    - 默认情况下，print()会在输出内容后自动添加换行符（\n）。
+    - 通过设置end=''，可以将原本的换行符替换为空字符串，使输出内容不换行，直接衔接下一次打印的内容。
   - **flush=True**
-    - 默认情况下，`print()`的输出会被缓存在系统缓冲区中，可能不会立即显示（例如在重定向到文件或某些终端时）。
-    - 设置`flush=True`会强制将缓冲区的内容立即刷新到目标输出（如控制台或文件），确保内容实时显示。这在需要即时输出（如进度条、实时日志）时特别有用
+    - 默认情况下，print()的输出会被缓存在系统缓冲区中，可能不会立即显示（例如在重定向到文件或某些终端时）。
+    - 设置flush=True会强制将缓冲区的内容立即刷新到目标输出（如控制台或文件），确保内容实时显示。这在需要即时输出（如进度条、实时日志）时特别有用
 
 ```python
 response = model.stream(message, config=None)
@@ -2053,7 +2053,7 @@ number 1 to the number 1 equals 2.',
 
 ### 2.3 新增环境变量
 
-- 在`.env`配置文件中，添加四个环境变量：
+- 在.env配置文件中，添加四个环境变量：
 
 ~~~bash
 # 是否启用Langsmith监控功能
@@ -2073,7 +2073,7 @@ LANGSMITH_PROJECT="LangChainDemo"
 
 ## 3、性能指标
 
-- **添加上述环境变量后，在程序中通过`load_dotenv()`加载，而后运行 LangChain 代码，LangSmith 会自动记录运行指标，并同步至后台服务，我们可以在 LangSmith 官网查看运行记录**
+- **添加上述环境变量后，在程序中通过load_dotenv()加载，而后运行 LangChain 代码，LangSmith 会自动记录运行指标，并同步至后台服务，我们可以在 LangSmith 官网查看运行记录**
 
 ![LangSmith监控日志](图片/LangSmith监控日志.png)
 
@@ -3151,6 +3151,11 @@ print(f"最终结果: {final_response.content}")
 ### 1.2 传统方式 vs 结构化输出
 
 - <font color="red">**传统的几种方式：繁琐不推荐**</font>
+  - 需要在 Prompt 中反复强调输出格式（如"请严格按JSON格式输出"）
+  - 需要用 json.loads() 做繁琐的 JSON 解析
+  - 需要 try/except 处理解析异常
+  - 手动创建对象并赋值
+  - 模型输出不稳定，格式容易走样
 
 ~~~python
 # 1、提示词要求json
@@ -3170,19 +3175,16 @@ person = Person(**data)
 ~~~
 
 - <font color="red">**结构化输出：简洁**</font>
+  - <font color="red">**prompt变干净了**</font>：字段的description直接充当了prompt的一部分
+  - <font color="red">**类型安全**</font>：编辑器能自动补全，代码运行前就能做类型检查
+  - <font color="red">**极其稳定**</font>：依托大模型厂商底层的json模式，输出错误率降到了极低
+  - <font color="red">**代码更简洁**</font>：一行 with_structured_output()即可完成绑定
 
 ~~~python
 # 一步到位
 structured_llm = model.with_structured_output(Person)
 person = structured_llm.invoke("张三是一名30岁的工程师")
 ~~~
-
-- 为什么结构化输出受欢迎
-  - 在没有Pydantic等结构化方案之前，开发者需要写大量的Prompt苦口婆心的球大模型“请返回json，不要带任何解释”，然后自己写繁琐的 json.loads()和try ...except
-  - 而有了Pydantic等结构化方案结合 .with_structured_output()之后
-    - <font color="red">**prompt变干净了**</font>：字段的description直接充当了prompt的一部分
-    - <font color="red">**类型安全**</font>：编辑器能自动补全，代码运行前就能做类型检查
-    - <font color="red">**极其稳定**</font>：依托大模型厂商底层的json模式，输出错误率降到了极低
 
 
 
@@ -3192,7 +3194,15 @@ person = structured_llm.invoke("张三是一名30岁的工程师")
   - <font color="red">**Pydantic**</font>（字段校验、描述、嵌套结构、功能最丰富）
   - <font color="red">**TypedDict**</font>（轻量类型约束）
   - <font color="red">**JSON Schema**</font>（与前后端/跨语言接口最通用）
-  - <font color="red">**dataclass**</font>
+  - <font color="red">**dataclass**</font>（简化数据类定义）
+
+
+| 模式            | 返回类型        | 运行时类型校验           | 适用场景             |
+| --------------- | --------------- | ------------------------ | -------------------- |
+| **Pydantic**    | 类实例（class） | 严格校验，不匹配直接报错 | 生产环境首选         |
+| **TypedDict**   | 字典（dict）    | 仅编译时提示，不报错     | 轻量级字典结构       |
+| **JSON Schema** | 字典（dict）    | 不报错                   | 需要手动定义JSON结构 |
+| **@dataclass**  | 字典（dict）    | 不报错                   | 简化数据类定义       |
 
 - 模型对象可以调用with_structured_output()绑定输出模式(schema)
 - <font color="red">**只有Pydantic返回的是Schema类实例，其余三种返回的都是字典；也只有Pydantic在类型不匹配时会抛出异常**</font>
@@ -3201,7 +3211,188 @@ person = structured_llm.invoke("张三是一名30岁的工程师")
 
 
 
+### 1.4 底层实现机制
+
+- 结构化输出的底层依赖于 **Function Calling**（函数调用）机制：
+  - LangChain 将定义的数据结构转换为 JSON Schema 格式
+  - 以"工具"的形式传递给大模型（类似上一章的工具绑定）
+  - 大模型按照 JSON Schema 严格生成对应格式的输出
+  - LangChain 将模型输出解析回对应的 Python 对象
+
+- 这意味着：**只要模型支持 Function Calling，就支持结构化输出**。目前 OpenAI、Anthropic、DeepSeek、Gemini 等主流模型均已支持。对于不支持的模型，只能退回传统的 Prompt + JSON 解析方式。
+
+
+
 ## 2、四种模式使用
 
 ### 2.1 Pydantic
+
+- Pydantic 是 Python 中最流行的数据验证库，LangChain 将其作为结构化输出的首选模式。所有结构化输出的数据模型都必须继承自 BaseModel
+- <font color="red">**通过在运行时强制执行类型提示，确保数据的正确性和一致性**</font>，生产首选
+
+- **核心组成要素：**
+  - <font color="red">**BaseModel**</font>：所有数据模型的父类，提供数据验证和序列化能力，所有结构化输出的数据模型都必须继承自 BaseModel
+  - <font color="red">**Field**</font>：用于为字段提供描述信息（description）、默认值（default）等元数据
+  - <font color="red">**类型提示**</font>：定义字段的数据类型（str、int、float、list 等）
+
+- 使用 Pydantic 进行结构化输出的标准流程：
+
+~~~bash
+定义 Pydantic 模型 → with_structured_output() 绑定 → invoke() 调用 → 获取类型化结果
+~~~
+
+- <font color="red">**关键方法 with_structured_output() 的作用**</font>：将 Pydantic 类型与大模型绑定，创建一个"结构化输出的大语言模型"。绑定后的模型在调用 invoke() 时，会自动按照定义的结构返回结果
+- 例子1：
+  - 定义 Person 类继承 BaseModel，声明三个字段及类型
+  - 使用 Field(description=...) 为每个字段添加描述，帮助模型理解字段含义
+  - 调用 with_structured_output(Person) 将模型与 Pydantic 类型绑定
+  - 绑定后的模型调用 invoke()，直接返回 Person 类型的实例
+  - 由于返回的是类实例，可以直接通过 result.name 等方式访问字段
+
+~~~python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from pydantic import BaseModel, Field
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+# 3、构造类
+class Person(BaseModel):
+    name: str = Field(description="姓名")
+    age: int = Field(description="年龄")
+    job: str = Field(description="职业")
+
+# 4、创建结构化输出的大语言模型
+structured_model = model.with_structured_output(Person)
+
+# 5、对话输出
+response = structured_model.invoke("张三是一个20岁的软件工程师")
+print(f"返回结果类型：{type(response)}")
+print(f"返回结果：{response}")
+print(f"姓名：{response.name}")
+print(f"年龄：{response.age}")
+print(f"工作：{response.job}")
+        
+"""
+返回结果类型：<class '__main__.Person'>
+返回结果：name='张三' age=20 job='软件工程师'
+姓名：张三
+年龄：20
+工作：软件工程师    
+"""
+~~~
+
+- 例子2
+
+~~~python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from pydantic import BaseModel, Field
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+# 3、构造类
+class MovieModel(BaseModel):
+    """电影的详细信息"""
+    title: str = Field(description="电影标题")
+    year: int = Field(description="发行年份")
+    director: str = Field(description="导演")
+    rating: float = Field(description="电影评分，满分十分")
+
+# 4、创建结构化输出的大语言模型
+structured_model = model.with_structured_output(MovieModel)
+
+# 5、对话输出
+response = structured_model.invoke("给出盗梦空间的详细信息")
+print(f"返回结果类型：{type(response)}")
+print(f"返回结果：{response}")
+print(f"电影标题：{response.title}")
+print(f"发行年份：{response.year}")
+print(f"导演：{response.director}")
+print(f"电影评分：{response.rating}")
+
+"""
+返回结果类型：<class '__main__.MovieModel'>
+返回结果：title='《盗梦空间》详细信息' year=2010 director='克里斯托弗·诺兰' rating=9.4
+电影标题：《盗梦空间》详细信息
+发行年份：2010
+导演：克里斯托弗·诺兰
+电影评分：9.4
+"""
+~~~
+
+- 例子3
+  - keywords 字段使用了 list[str] 类型，表示字符串列表
+  - sentiment 字段通过 description 限定了可选值范围（positive/negative/neutral），但这是软约束，模型可能不严格遵守
+  - 如需硬约束，应使用后续课程介绍的枚举类型或 Literal
+
+~~~python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from pydantic import BaseModel, Field
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+# 3、构造类
+class SentimentAnalysis(BaseModel):
+    """情感分析结果"""
+    sentiment: str = Field(description="情感倾向：positive/negative/neutral")
+    confidence: float = Field(description="置信度，0-1之间")
+    keywords: list[str] = Field(description="关键词列表")
+
+# 4、创建结构化输出的大语言模型
+structured_model = model.with_structured_output(SentimentAnalysis)
+
+# 5、对话输出
+text = "这个课程内容很实用，学到了很多知识，强烈推荐！"
+response = structured_model.invoke(f"分析以下文本的情感：\n{text}")
+
+# 6、输出返回
+print(f"返回结果类型：{type(response)}")
+print(f"返回结果：{response}")
+print(f"情感倾向：{response.sentiment}")
+print(f"置信度：{response.confidence}")
+print(f"关键词列表：{response.keywords}")
+
+"""
+返回结果类型：<class '__main__.SentimentAnalysis'>
+返回结果：sentiment='正面/积极' confidence=0.98 keywords=['很实用', '学到了很多知识', '强烈推荐']
+情感倾向：正面/积极
+置信度：0.98
+关键词列表：['很实用', '学到了很多知识', '强烈推荐']
+"""
+~~~
 
