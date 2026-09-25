@@ -3,9 +3,9 @@
 ## 1、是什么
 
 - Agent 是智能体，Skills 是技能的意思，Agent Skills（智能体技能）是将专业知识、工作流规范固化为可复用资产的核心工具。
-
 - Agent Skills 本质上是一个模块化的 Markdown 文件，能教会 AI 工具 （如 Claude、GitHub Copilot、Cursor 等） 执行特定任务，且支持自动触发、团队共享与工程化管理，彻底告别重复的提示词输入
 - Agent Skills 的本质不是工具，而是：<font color="red">**行为规范 + 专业知识 + 使用时机的组合**</font>
+- 总结：SKills本质是<font color="red">**结构化的本地文件夹**</font>，用来补充某个领域的流程、知识和工具，让模型在相关场景下自动或按需调用，是<font color="red">**面向大模型的能力封装**</font>
 
 
 
