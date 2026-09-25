@@ -496,11 +496,11 @@ if __name__ == "__main__":
 
 - 执行结果
 
-![完整Skill1](图片/完整Skill1.PNG)
+![完整Skill1](图片/完整skill1.PNG)
 
-![完整Skill2](图片/完整Skill2.PNG)
+![完整Skill2](图片/完整skill2.PNG)
 
-![完整Skill3](图片/完整Skill3.PNG)
+![完整Skill3](图片/完整skill3.PNG)
 
 
 
