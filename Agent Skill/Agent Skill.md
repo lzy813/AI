@@ -362,7 +362,7 @@ http://127.0.0.1:8000/user/extract
 }
 ~~~
 
-![单Skill](图片/单Skill.png)
+![单Skill](图片/单Skill.PNG)
 
 
 
@@ -496,11 +496,11 @@ if __name__ == "__main__":
 
 - 执行结果
 
-![完整Skill1](图片/完整Skill1.png)
+![完整Skill1](图片/完整Skill1.PNG)
 
-![完整Skill2](图片/完整Skill2.png)
+![完整Skill2](图片/完整Skill2.PNG)
 
-![完整Skill3](图片/完整Skill3.png)
+![完整Skill3](图片/完整Skill3.PNG)
 
 
 
