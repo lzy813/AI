@@ -38,12 +38,12 @@
 - <font color="red">**langchain4j‑open‑ai：（低阶主包）**</font>
 
   - 职责：<font color="red">**只负责发 HTTP 请求调用大模型**</font>
-  - 类：`OpenAiChatModel`、`OpenAiStreamingChatModel`、`OpenAiEmbeddingModel`
+  - 类：OpenAiChatModel、OpenAiStreamingChatModel、OpenAiEmbeddingModel
   - 能力：
     - 拼装 http 请求体
-    - 签名、携带 apiKey、请求模型接口 `/v1/chat/completions`
-    - 解析返回 JSON，转成 LangChain4j 标准对象 `AiMessage`
-    - 抛出你刚才遇到的 `HttpException`
+    - 签名、携带 apiKey、请求模型接口 /v1/chat/completions
+    - 解析返回 JSON，转成 LangChain4j 标准对象 AiMessage
+    - 抛出你刚才遇到的 HttpException
   - 只能用低阶用法
 
   ~~~java
@@ -63,15 +63,15 @@
 
   - 它本身**不能直接调用任何大模型接口**！ 
 
-  - 它依赖 `langchain4j‑core` + 模型驱动包（open‑ai /dashscope 等） 
+  - 它依赖 langchain4j‑core + 模型驱动包（open‑ai /dashscope 等） 
 
   - 提供上层封装组件：
 
-    - `AiServices` 动态代理（最核心）
+    - AiServices 动态代理（最核心）
 
-    - `@Tool` 工具调用注解
+    - @Tool 工具调用注解
 
-    - `ChatMemory` 对话上下文记忆
+    - ChatMemory 对话上下文记忆
 
     - 文档拆分、RAG 检索组件
 
@@ -203,6 +203,8 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
+
 /**
  * 模型配置
  */
@@ -211,15 +213,14 @@ public class LLMConfig {
     @Bean
     public ChatModel chatModel() {
         return OpenAiChatModel.builder()
-                .apiKey(System.getenv("ALIQWEN_API"))  
-                .modelName("deepseek-v4-pro")
-                .baseUrl("https://api.deepseek.com")
-            	.logRequests(true) // 日志级别设置为debug才有效  
-                .logResponses(true)// 日志级别设置为debug才有效  
-                .listeners(List.of(new TestChatModelListener()))  // 事件监听
+                .apiKey(System.getenv("ALIQWEN_API"))
+                .modelName("qwen3.8-max")
+                .baseUrl("https://maas.qianwenaiapi.com/compatible-mode/v1")
+                .logRequests(true) // 日志级别设置为debug才有效
+                .logResponses(true)// 日志级别设置为debug才有效
                 .maxRetries(2) // 最大重试次数
                 .timeout(Duration.ofSeconds(5)) // 请求大模型的超时时间
-                .build(); 
+                .build();
     }
 }
 ~~~
@@ -513,7 +514,13 @@ public class LangChai4JController {
 
 # 四、低阶高阶对比
 
+## 1、低阶方式
 
+- 可以使用ChatModel、UserMessage、AiMessage、EmbeddingStore、Embedding 等 
+- 优点是可以自由组合使用各个组件但编码量比较高
+- ChatModel 
+  - low‑level 模型 api，提供 chat 方法用于对话，可以接收
+  - ChatModel 提供的一种极其简便的方法
 
 
 
@@ -603,11 +610,251 @@ public class LangChai4JController {
 
 # 五、模型参数介绍
 
+## 1、配置
+
+- 知识来源：https://docs.langchain4j.dev/integrations/language-models/open-ai
+
+~~~properties
+# Mandatory properties:
+langchain4j.open-ai.chat-model.api-key=${OPENAI_API_KEY}
+langchain4j.open-ai.chat-model.model-name=gpt-4o-mini
+
+# Optional properties:
+langchain4j.open-ai.chat-model.base-url=...
+langchain4j.open-ai.chat-model.custom-headers=...
+langchain4j.open-ai.chat-model.frequency-penalty=...
+langchain4j.open-ai.chat-model.log-requests=...
+langchain4j.open-ai.chat-model.log-responses=...
+langchain4j.open-ai.chat-model.logit-bias=...
+langchain4j.open-ai.chat-model.max-retries=...
+langchain4j.open-ai.chat-model.max-completion-tokens=...
+langchain4j.open-ai.chat-model.max-tokens=...
+langchain4j.open-ai.chat-model.metadata=...
+langchain4j.open-ai.chat-model.organization-id=...
+langchain4j.open-ai.chat-model.parallel-tool-calls=...
+langchain4j.open-ai.chat-model.presence-penalty=...
+langchain4j.open-ai.chat-model.project-id=...
+langchain4j.open-ai.chat-model.reasoning-effort=...
+langchain4j.open-ai.chat-model.response-format=...
+langchain4j.open-ai.chat-model.return-thinking=...
+langchain4j.open-ai.chat-model.seed=...
+langchain4j.open-ai.chat-model.service-tier=...
+langchain4j.open-ai.chat-model.stop=...
+langchain4j.open-ai.chat-model.store=...
+langchain4j.open-ai.chat-model.strict-schema=...
+langchain4j.open-ai.chat-model.strict-tools=...
+langchain4j.open-ai.chat-model.supported-capabilities=...
+langchain4j.open-ai.chat-model.temperature=...
+langchain4j.open-ai.chat-model.timeout=...
+langchain4j.open-ai.chat-model.top-p=
+langchain4j.open-ai.chat-model.user=...
+
+# Optional Property: Custom Parameters (user-defined key=value) 
+langchain4j.open-ai.chat-model.custom-parameters.<key>=<value>
+~~~
 
 
 
+## 2、配置方式
+
+### 2.1 原生config配置方式
+
+~~~java
+package org.example.config;
+
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.time.Duration;
+
+/**
+ * 模型配置
+ */
+@Configuration
+public class LLMConfig {
+    @Bean
+    public ChatModel chatModel() {
+        return OpenAiChatModel.builder()
+                .apiKey(System.getenv("ALIQWEN_API"))
+                .modelName("qwen3.8-max")
+                .baseUrl("https://maas.qianwenaiapi.com/compatible-mode/v1")
+                .logRequests(true) // 日志级别设置为debug才有效
+                .logResponses(true)// 日志级别设置为debug才有效
+                .maxRetries(2) // 最大重试次数
+                .timeout(Duration.ofSeconds(5)) // 请求大模型的超时时间
+                .build();
+    }
+}
+~~~
 
 
+
+### 2.2 springboot配置文件方式
+
+~~~yaml
+langchain4j:
+  open-ai:
+    chat-model:
+      # 是否开启，默认true
+      enabled: true
+      # 模型名称
+      model-name: qwen3.8-max
+      # api‑key
+      api-key: XXX
+      # 自定义地址(DeepSeek/通义都需要改)，官方OpenAI填 https://api.openai.com/v1
+      base-url: https://ws-zks05buw2zy3a3e4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      # 温度 0~2，越低越确定，越高越发散
+      temperature: 0.7
+      # 最大返回token
+      max-tokens: 2048
+      # 超时时间
+      timeout: 30s
+      # 日志打印完整请求响应
+      log-requests: true
+      log-responses: true
+~~~
+
+
+
+## 3、常用配置
+
+### 3.1 日志配置
+
+- config方式
+  - logRequests：请求日志开启
+  - logResponses：响应日志开启
+
+~~~java
+package org.example.config;
+
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 模型配置
+ */
+@Configuration
+public class LLMConfig {
+    @Bean
+    public ChatModel chatModel() {
+        return OpenAiChatModel.builder()
+                .apiKey(System.getenv("ALIQWEN_API"))
+                .modelName("qwen3.8-max")
+                .baseUrl("https://maas.qianwenaiapi.com/compatible-mode/v1")
+                .logRequests(true) // 日志级别设置为debug才有效
+                .logResponses(true)// 日志级别设置为debug才有效
+                .build();
+    }
+}
+~~~
+
+- 配置文件方式
+
+~~~yaml
+langchain4j:
+  open-ai:
+    chat-model:
+      # 日志打印完整请求响应
+      log-requests: true
+      log-responses: true
+~~~
+
+- 控制台打印
+
+~~~bash
+2026-09-26T23:31:45.486+08:00  INFO 18692 --- [nio-8080-exec-5] d.l.http.client.log.LoggingHttpClient    : HTTP request:
+- method: POST
+- url: https://ws-zks05buw2zy3a3e4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+- headers: [Authorization: Beare...Bk], [Content-Type: application/json], [User-Agent: langchain4j-openai]
+- body: {
+  "model" : "qwen3.8-max",
+  "messages" : [ {
+    "role" : "user",
+    "content" : "你是谁"
+  } ],
+  "temperature" : 0.7,
+  "stream" : false,
+  "max_tokens" : 2048
+}
+
+2026-09-26T23:31:48.538+08:00  INFO 18692 --- [nio-8080-exec-5] d.l.http.client.log.LoggingHttpClient    : HTTP response:
+- status code: 200
+- headers: [:status: 200], [content-type: application/json; charset=utf-8], [date: Sat, 26 Sep 2026 15:31:49 GMT], [grpc-accept-encoding: gzip], [grpc-encoding: identity], [req-arrive-time: 1790436706322], [req-cost-time: 2914], [resp-start-time: 1790436709236], [server: istio-envoy], [vary: Accept-Encoding], [x-envoy-upstream-service-time: 2914], [x-request-id: 59d90a78-3a78-9efb-9874-d3c67d57c168]
+- body: {"id":"chatcmpl-59d90a78-3a78-9efb-9874-d3c67d57c168","object":"chat.completion","created":1790436706,"model":"qwen3.8-max","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"用户用中文问“你是谁”。需要用中文回答。需要说明身份，遵循身份指引：我是通义千问，由阿里巴巴通义实验室研发的大语言模型。不要提版本号。可以简洁友好。","content":"我是通义千问，由阿里巴巴通义实验室研发的大语言模型。我可以帮你回答问题、写作、总结、翻译、写代码、做分析等。有什么我可以帮你的吗？"},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":62,"total_tokens":147,"completion_tokens":85,"prompt_tokens_details":{"cached_tokens":0,"text_tokens":62},"completion_tokens_details":{"reasoning_tokens":43,"text_tokens":85}}}
+~~~
+
+
+
+### 3.2 监控
+
+- config方式
+  - logRequests：请求日志开启
+  - logResponses：响应日志开启
+
+~~~java
+package org.example.config;
+
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 模型配置
+ */
+@Configuration
+public class LLMConfig {
+    @Bean
+    public ChatModel chatModel() {
+        return OpenAiChatModel.builder()
+                .apiKey(System.getenv("ALIQWEN_API"))
+                .modelName("qwen3.8-max")
+                .baseUrl("https://maas.qianwenaiapi.com/compatible-mode/v1")
+                .logRequests(true) // 日志级别设置为debug才有效
+                .logResponses(true)// 日志级别设置为debug才有效
+                .build();
+    }
+}
+~~~
+
+- 配置文件方式
+
+~~~yaml
+langchain4j:
+  open-ai:
+    chat-model:
+      # 日志打印完整请求响应
+      log-requests: true
+      log-responses: true
+~~~
+
+- 控制台打印
+
+~~~bash
+2026-09-26T23:31:45.486+08:00  INFO 18692 --- [nio-8080-exec-5] d.l.http.client.log.LoggingHttpClient    : HTTP request:
+- method: POST
+- url: https://ws-zks05buw2zy3a3e4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+- headers: [Authorization: Beare...Bk], [Content-Type: application/json], [User-Agent: langchain4j-openai]
+- body: {
+  "model" : "qwen3.8-max",
+  "messages" : [ {
+    "role" : "user",
+    "content" : "你是谁"
+  } ],
+  "temperature" : 0.7,
+  "stream" : false,
+  "max_tokens" : 2048
+}
+
+2026-09-26T23:31:48.538+08:00  INFO 18692 --- [nio-8080-exec-5] d.l.http.client.log.LoggingHttpClient    : HTTP response:
+- status code: 200
+- headers: [:status: 200], [content-type: application/json; charset=utf-8], [date: Sat, 26 Sep 2026 15:31:49 GMT], [grpc-accept-encoding: gzip], [grpc-encoding: identity], [req-arrive-time: 1790436706322], [req-cost-time: 2914], [resp-start-time: 1790436709236], [server: istio-envoy], [vary: Accept-Encoding], [x-envoy-upstream-service-time: 2914], [x-request-id: 59d90a78-3a78-9efb-9874-d3c67d57c168]
+- body: {"id":"chatcmpl-59d90a78-3a78-9efb-9874-d3c67d57c168","object":"chat.completion","created":1790436706,"model":"qwen3.8-max","choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"用户用中文问“你是谁”。需要用中文回答。需要说明身份，遵循身份指引：我是通义千问，由阿里巴巴通义实验室研发的大语言模型。不要提版本号。可以简洁友好。","content":"我是通义千问，由阿里巴巴通义实验室研发的大语言模型。我可以帮你回答问题、写作、总结、翻译、写代码、做分析等。有什么我可以帮你的吗？"},"finish_reason":"stop","logprobs":null}],"usage":{"prompt_tokens":62,"total_tokens":147,"completion_tokens":85,"prompt_tokens_details":{"cached_tokens":0,"text_tokens":62},"completion_tokens_details":{"reasoning_tokens":43,"text_tokens":85}}}
+~~~
 
 
 
@@ -772,7 +1019,6 @@ public interface StreamingChatResponseHandler {
 ~~~java
 package org.example.config;
 
-import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import org.springframework.context.annotation.Bean;
@@ -783,21 +1029,14 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class LLMConfig {
-    @Bean("qwen")
-    public StreamingChatModel chatModelQwen() {
+    @Bean
+    public StreamingChatModel chatModel() {
         return OpenAiStreamingChatModel.builder()
-                .apiKey("sk-ws-H.EYHLXID.94g4.MEYCIQDxvKfua7F_KDMECg_myE86M2VlVnWjFW_MdNY_ZVHE7gIhAPKwAd2FGskYlTDlm3iNyDm-gDLb70sqRLK5SN9iWEBq")
-                .modelName("qwen3.7-plus")
+                .apiKey("sk-ws-H.PLELYED.zEdD.MEUCIQDYAGOi2LhNA4sCysI8ZZHFMOu0lsPGPXN1IA7DO6W_DAIgavKbYWqvooLGvdzpnv-uvfchIRP4NIxXE7WXTmBGCBk")
+                .modelName("qwen3.8-max")
                 .baseUrl("https://ws-zks05buw2zy3a3e4.cn-beijing.maas.aliyuncs.com/compatible-mode/v1")
-                .build();
-    }
-
-    @Bean("deepseek")
-    public StreamingChatModel chatModelDeepSeek() {
-        return OpenAiStreamingChatModel.builder()
-                .apiKey("sk-3aa699fb50004c23bcb71282481d3a68")
-                .modelName("deepseek-v4-pro")
-                .baseUrl("https://api.deepseek.com")
+                .logRequests(true) // 日志级别设置为debug才有效
+                .logResponses(true)// 日志级别设置为debug才有效
                 .build();
     }
 }
@@ -823,7 +1062,7 @@ import reactor.core.publisher.Flux;
 @RestController
 public class LangChai4JStreamController {
 
-    @Resource(name = "qwen")
+    @Resource
     private StreamingChatModel streamingChatModel;
 
     @GetMapping(value = "/chatstream")
@@ -852,6 +1091,8 @@ public class LangChai4JStreamController {
 
 }
 ~~~
+
+- 测试：http://localhost:8080/chatstream?prompt=你好
 
 
 
@@ -969,18 +1210,18 @@ public class LangChai4JStreamController {
 
 - 目前，LangChain4j 提供了两种现成的实现：
 
-  - <font color="red">**`MessageWindowChatMemory`（消息计数）：保留最近的N条消息**</font>，作为一个滑动窗口工作，<font color="red">**保留最近的 N 条消息，并清除不再适合的较旧消息**</font>。然而，由于每条消息可能包含不同数量的令牌，`MessageWindowChatMemory`主要用于快速原型设计。
+  - <font color="red">**MessageWindowChatMemory（消息计数）：保留最近的N条消息**</font>，作为一个滑动窗口工作，<font color="red">**保留最近的 N 条消息，并清除不再适合的较旧消息**</font>。然而，由于每条消息可能包含不同数量的令牌，MessageWindowChatMemory主要用于快速原型设计。
 
-  - <font color="red">**`TokenWindowChatMemory` （`Tokenizer` 计数）：保留最近的N个 Token**</font>，它也作为滑动窗口工作，<font color="red">**但专注于保留最近的 N 个 Token，根据需要清除较旧的消息**</font>。消息是不可分割的。如果一条消息不适合，它将被完全清除。`TokenWindowChatMemory` 需要一个`TokenCountEstimator` 来计算每条 `ChatMessage` 中的Token数。
+  - <font color="red">**TokenWindowChatMemory （Tokenizer 计数）：保留最近的N个 Token**</font>，它也作为滑动窗口工作，<font color="red">**但专注于保留最近的 N 个 Token，根据需要清除较旧的消息**</font>。消息是不可分割的。如果一条消息不适合，它将被完全清除。TokenWindowChatMemory 需要一个TokenCountEstimator 来计算每条 ChatMessage 中的Token数。
 
 
 
 ## 3、主要特性
 
 - 淘汰策略：自动管理消息数量以适应LLM上下文窗口限制
-  - `MessageWindowChatMemory`（消息计数）：保留最近的N条消息
-  - `TokenWindowChatMemory` （`Tokenizer` 计数）：保留最近的N个 Token
-- **持久化支持**：可将聊天消息存储到持久化存储（`ChatMemoryStore`）中
+  - MessageWindowChatMemory（消息计数）：保留最近的N条消息
+  - TokenWindowChatMemory （Tokenizer 计数）：保留最近的N个 Token
+- **持久化支持**：可将聊天消息存储到持久化存储（ChatMemoryStore）中
 - **SystemMessage特殊处理**：系统消息的专门管理机制
 - **工具消息特殊处理**：避免孤立工具执行结果消息导致的问题
 
