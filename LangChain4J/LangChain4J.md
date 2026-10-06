@@ -1357,6 +1357,8 @@ public class LangChai4JStreamController {
 
 - 大模型版的OpenFeign，OpenFeign用于微服务之间的通讯，MCP用于大模型之间通讯
 
+- MCP就是比FunctionCalling的更高一级抽象，也是实现智能体Agent的基础
+
 
 
 ## 2、能干嘛

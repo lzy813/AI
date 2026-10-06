@@ -919,95 +919,168 @@ print(model.invoke("你好，用一句话回答"))
 
 - API文档：<https://docs.langchain.org.cn/oss/python/langchain/models#parameters>
 
+| 参数           | 类型  | 说明                                                         | 默认值 |
+| -------------- | ----- | ------------------------------------------------------------ | ------ |
+| model          | str   | 使用的特定提供商的模型名称 (必需)。比如：openai:gpt‑4o、groq:gemma2‑9b‑it | 无     |
+| model_provider | str   | 模型提供商名称                                               | 无     |
+| api_key        | str   | API 密钥。如果不提供，会从环境变量中读取（如 DEEPSEEK_API_KEY） | None   |
+| base_url       | str   | 大模型供应商 API 请求地址。                                  | None   |
+| temperature    | float | 控制输出随机性，范围 0.0‑2.0，温度越高输出越随机。<br />‑ 0.0：最确定性，输出几乎不变<br />‑ 1.0：平衡创造性和一致性<br />‑ 2.0：最随机，最有创造性 | 0.7    |
+| max_tokens     | int   | 限制模型输出的最大 token 数量                                | None   |
+| timeout        | float | 超时时间（秒），超时未响应，请求会被取消。                   | None   |
+| max_retries    | int   | 请求失败（如网络问题、速率限制）时的最大重试次数             | 6      |
 
+- 说明： 
 
+  - 1、temperature 参数根据使用场景选择：
 
+    - 0.0‑0.3：需要一致性、准确性的任务（数学计算、数据提取、分类、代码生成）
 
+    - 0.5‑0.7：平衡创造性和一致性（聊天、问答）
 
+    - 0.8‑1.5：创造性任务（写作、头脑风暴）
 
+    - 1.5‑2.0：高度创造性（诗歌、故事创作）
 
+    ![Temperature](图片/Temperature.png)
 
+  - 2、Token 是什么？
 
+    - **基本单位**：大模型通过分词器（Tokenizer）将文本拆分后的最小语义单元是 token（相当于自然语言中的词或字）。不同的模型采用不同的分词算法（如 BPE、WordPiece），因此同一段文本在不同模型中的 Token 数量可能不同。
 
+    - **收费依据**：大语言模型通常也是以 token 的数量作为其计量（或收费）的依据。
 
+      - 1 个中文 Token≈1‑1.8 个汉字，1 个英文 Token≈3‑4 个字符
 
+      - Token 与字符转化的可视化工具：
+        - OpenAI 提供：https://platform.openai.com/tokenizer
+        - 百度智能云提供：https://console.bce.baidu.com/support/#/tokenizer
 
+    - max_tokens：限制返回的最大token数
 
 
 
 
+## 4、本地模型使用
 
+### 4.1 Ollama 介绍
 
+- Ollama 是一个开源的本地大语言模型运行框架（GitHub 开源项目）。它让开发者能够在本地计算机上轻松下载、安装和运行各种开源大模型（如 DeepSeek、Llama、Qwen 等），无需依赖云端 API，也无需复杂的环境配置
 
 
 
+### 4.2 Ollama 的核心优势
 
+- **本地运行**：数据不离开本机，适合对隐私敏感的场景
+- **零 API 费用**：本地推理不产生 API 调用费用
+- **开箱即用**：安装简单，一条命令即可运行模型
+- **模型丰富**：支持 DeepSeek、Llama、Qwen、Mistral 等主流开源模型
+- **兼容 OpenAI API**：本地服务暴露的 API 接口兼容 OpenAI 格式
 
 
 
+### 4.3 Ollama 安装与配置
 
+- **安装步骤**：
 
+  - 访问 https://ollama.com/download 下载对应操作系统的安装包：OllamaSetup.exe
 
+  - 运行安装程序（可通过 CMD 自定义安装路径）
 
+  - 安装完成后，Ollama 会在后台启动一个本地服务
 
+- **重要配置 - 修改模型下载路径**：
+  - Ollama 默认将模型文件存储在 C 盘的用户目录下，大模型文件会占用大量磁盘空间。建议通过设置环境变量 OLLAMA_MODELS 将模型存储路径改到其他磁盘。
 
+- **下载模型**：
 
+  - 通过 [ollama.com/models](http://ollama.com/models) 浏览可用模型
 
+  - 使用命令行下载：ollama run 模型名（首次运行会自动下载）
 
+  - 使用 ollama list 查看已安装的模型
 
+- **验证**：
+  - curl http://localhost:11434/api/tags
+  - 如果返回一串 JSON 数据（你安装的模型列表），说明 API 已经在工作了
 
+- **搭配图形界面（推荐 Open WebUI）**
 
+  - docker run -d -p 3000:8080 --name open-webui -v open-webui:/app/backend/data ghcr.io/open-webui/open-webui:main
 
+  - （需要先安装 Docker  Desktop，地址：Docker Desktop: The #1 Containerization Tool for Developers | Docker）
 
+  - 装完后浏览器打开 http://localhost:3000，注册一个本地账号就能用，界面和 ChatGPT 几乎一样
 
 
 
+### 4.4 硬件选型建议
 
+本地运行大模型对硬件有一定要求，主要是内存（RAM）和显存（VRAM）：
 
+| 模型参数量 | 最低内存需求 | 推荐配置            | 适用场景           |
+| ---------- | ------------ | ------------------- | ------------------ |
+| 1.5B       | 8GB RAM      | 集成显卡即可        | 快速测试、学习     |
+| 7B         | 16GB RAM     | 8GB+ 显存的独立显卡 | 日常开发、简单任务 |
+| 14B        | 32GB RAM     | 16GB+ 显存          | 复杂任务           |
+| 32B+       | 64GB+ RAM    | 高端显卡            | 不推荐个人电脑使用 |
 
+**关键建议**：个人电脑不建议下载 32B 及以上参数量的模型，14B 大致是个人电脑能够流畅运行的上限。
 
 
 
+### 4.5 两种使用方式
 
+1. **命令行方式**：ollama run 模型名 直接在终端与模型对话
+2. **桌面客户端**：Ollama 提供图形界面客户端，操作更友好
 
 
 
+### 4.6 LangChain 集成方式
 
+- Ollama 在 LangChain 中有两种集成方式：
 
+  - **ChatOllama**：专用类，功能更完整
 
+  - **init_chat_model**：统一接口，需指定 model_provider="ollama"
 
+- 两种方式都需要 Ollama 服务在本地运行（默认端口 11434）。对于本地模型，base_url 和 api_key 通常不需要手动指定。
 
 
 
+### 4.7 代码
 
+- ChatOllama方式
+  - **代码解读**：ChatOllama 是 LangChain 为 Ollama 提供的专用集成类。只需指定 model 参数为本地已安装的模型名即可，base_url 默认指向 http://localhost:11434，无需手动配置。
 
+~~~python
+from langchain_ollama import ChatOllama
 
+# 创建 Ollama 模型实例
+# 模型名必须是本地已通过 ollama pull 下载的模型
+model = ChatOllama(model="deepseek-r1:1.5b")
 
+# 调用模型
+result = model.invoke("介绍一下你自己")
+print(result.content)
+~~~
 
+- init_chat_model
+  - **代码解读**：使用 init_chat_model 时，必须通过 model_provider="ollama" 显式指定使用 Ollama 作为模型提供者。本地运行的模型不需要提供 api_key 和 base_url（会使用默认值 http://localhost:11434）
 
+~~~python
+from langchain.chat_models import init_chat_model
 
+# 使用 init_chat_model 统一接口
+# 必须显式指定 model_provider="ollama"
+model = init_chat_model(
+    model="deepseek-r1:1.5b",
+    model_provider="ollama",
+)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+result = model.invoke("介绍一下你自己")
+print(result.content)
+~~~
 
 
 
@@ -1190,9 +1263,10 @@ response = model.invoke(input, config=None)
   ~~~
 
 
+
 #### 5.1.3 返回值详解
 
-- invoke返回的是一个AIMessage对象，源码如下：
+- invoke 方法返回的是 langchain_core.messages.ai.AIMessage 类型的对象，包含丰富的元数据信息
 
 ~~~python
 def invoke(
@@ -1204,6 +1278,67 @@ def invoke(
     **kwargs: Any,
 ) -> AIMessage:
 ~~~
+
+- 主要字段说明
+
+  | 字段               | 类型 | 说明                                               |
+  | ------------------ | ---- | -------------------------------------------------- |
+  | content            | str  | 模型的主要回复文本，最常用的字段                   |
+  | additional_kwargs  | dict | 厂商特定的额外参数（如 refusal=null 表示安全回复） |
+  | response_metadata  | dict | 最丰富的元数据块，包含性能指标和token统计          |
+  | id                 | str  | LangChain 生成的本次调用唯一标识符                 |
+  | tool_calls         | list | 工具调用信息（后续课程讲解）                       |
+  | invalid_tool_calls | list | 无效的工具调用（后续课程讲解）                     |
+  | usage_metadata     | dict | token 消耗摘要                                     |
+
+- 使用 rich 库美化输出
+
+  - rich 是 Python 的富文本格式化库，可以将复杂对象以结构化、彩色的方式输出，方便调试：
+  - from rich import print as rprint
+
+  ~~~python
+  from langchain_openai import ChatOpenAI
+  from langchain_core.messages import HumanMessage
+  from rich import print as rprint
+  
+  # 初始化模型
+  model = ChatOpenAI(
+      base_url="https://api.deepseek.com/v1",
+      api_key="your-api-key",
+      model="deepseek-chat"
+  )
+  
+  # 调用模型
+  response = model.invoke([HumanMessage(content="2 + 3 * 2 = ?")])
+  
+  # 查看返回类型
+  print(type(response))  # <class 'langchain_core.messages.ai.AIMessage'>
+  
+  # 使用 rich 格式化输出完整对象（调试时非常有用）
+  rprint(response)
+  
+  # ===== 访问各字段 =====
+  
+  # 1. 主要回复内容
+  print("AI 回复:", response.content)
+  
+  # 2. 元数据
+  metadata = response.response_metadata
+  print(f"使用的模型: {metadata.get('model_name')}")
+  print(f"结束原因: {metadata.get('finish_reason')}")
+  
+  # 3. Token 使用情况
+  usage = metadata.get('token_usage', {})
+  print(f"输入 tokens: {usage.get('prompt_tokens')}")
+  print(f"输出 tokens: {usage.get('completion_tokens')}")
+  print(f"总计 tokens: {usage.get('total_tokens')}")
+  
+  # 4. 消息ID（可用于日志追踪）
+  print(f"消息 ID: {response.id}")
+  
+  # 5. usage_metadata（token消耗摘要）
+  print(f"Token 摘要: {response.usage_metadata}")
+  ~~~
 
 - AIMessage中包含丰富的信息，通过rich库将返回格式化如下：
 
@@ -1219,17 +1354,40 @@ AIMessage(
             'completion_tokens': 20,				# 生成回答消耗的Token数（输出）
             'prompt_tokens': 28,					# 用户输入消耗的Token数（输入）
             'total_tokens': 48,						# 本次交互总共消耗的Token数
-            'completion_tokens_details': None,
-            'prompt_tokens_details': None,
+            
+    		'completion_tokens_details': {
+                'accepted_prediction_tokens': 0,    # 预测性生成的 Token 数
+                'audio_tokens': 0,                  # 音频生成消耗（如有）
+                'reasoning_tokens': 0,              # 推理模型（如 o1）思考过程消耗的 Token
+                'rejected_prediction_tokens': 0     # 被拒绝的预测 Token
+            },
+    
+            'prompt_tokens_details': {
+                'audio_tokens': 0,  # 输入中的音频 Token 数
+                'cached_tokens': 0  # 命中的缓存 Token 数（能省钱/提速）
+            },
+
+			# --- 延迟性能监控（单位：毫秒 ms） ---
+            'latency_checkpoint': {
+                'engine_tbt_ms': 4,      # 引擎 Token 间平均间隔时间
+                'engine_ttft_ms': 36,    # 引擎生成首个 Token 的时间
+                'engine_ttlt_ms': 100,   # 引擎生成最后一个 Token 的时间
+                'pre_inference_ms': 86, # 推理前的预处理耗时(安全审核、Token 化等预处理)
+                'service_tbt_ms': 4, # 服务端token与token之间生成的间隔时间，决定了打字机效果是否丝滑。
+                'service_ttft_ms': 280, # 服务端接收到请求到输出首字的总时间
+                'service_ttlt_ms': 338, # 服务端完成全部输出的总时间
+                'total_duration_ms': 259, # 本次请求在系统中记录的总持续时长
+                'user_visible_ttft_ms': 194  # 用户看到第一个字跳出来等待的时间
+            },
             'ttft': 349,
             'tpot': 67
         },
-        'model_provider': 'openai',
-        'model_name': 'hosted_vllm/DeepSeek-V3.1-Terminus-NoThinking-32K',
-        'system_fingerprint': None,
-        'id': 'chatcmpl-46aca926b6',
-        'finish_reason': 'stop',
-        'logprobs': None
+        'model_provider': 'openai',			# 模型供应商
+        'model_name': 'hosted_vllm/DeepSeek-V3.1-Terminus-NoThinking-32K',# 使用的具体模型版本
+        'system_fingerprint': None,	 # 系统指纹，用于追踪模型后端的配置变更
+        'id': 'chatcmpl-46aca926b6', #API层面的响应ID
+        'finish_reason': 'stop',  # 停止原因，stop（自然结束）；length（长度受限）
+        'logprobs': None	   # 对数概率（通常用于分析词汇选择的可能性）
     },
     
     # --- LangChain 内部标识 ---
@@ -1256,226 +1414,6 @@ AIMessage(
     }
 )
 ~~~
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1771,37 +1709,258 @@ print(f"循环invoke耗时{batch_time:.2f}秒")
   - <font color="red">**避免阻塞主线程**</font>：同步调用会阻塞程序执行，而异步方法会让应用程序在等待API响应时保持响应性
   - <font color="red">**优化资源利用**</font>：异步操作可以更高效率利用系统资源，减少空闲等待时间
 
-- ainvoke
+- **核心原理**：使用 asyncio.create_task() 将模型调用放入后台执行，主线程继续运行，最后通过 await 获取结果。
+
+- ainvoke()使用
 
 ~~~python
+import asyncio
+import os
+import time
 
+import dotenv
+from langchain.chat_models import init_chat_model
+
+# 1、加载配置文件内容
+dotenv.load_dotenv()
+
+# 2、获取配置文件信息
+API_KEY = os.getenv("API_KEY")
+AI_MODEL = os.getenv("AI_MODEL")
+BASE_URL = os.getenv("BASE_URL")
+
+# 3、模型初始化
+model = init_chat_model(
+    model=AI_MODEL,
+    model_provider="openai",
+    temperature=0,
+    api_key=API_KEY,
+    base_url=BASE_URL
+)
+
+
+async def demo_async_invoke():
+    print("=== 演示：ainvoke 的异步（非阻塞）效果 ===")
+    start_time = time.perf_counter()  # 记录开始时间
+
+    print("程序开始...")
+
+    # 1. 创建任务（Task）
+    print(">>> 发起异步模型调用 (ainvoke)...")
+    async_task = asyncio.create_task(model.ainvoke("用一句话解释人工智能。"))
+
+    # 2. 并行执行其他任务
+    print(">>> 模型请求已在后台发送，继续执行本地逻辑...")
+    for i in range(3):
+        await asyncio.sleep(1)  # 使用异步等待，释放控制权
+        print(f">>> 正在执行第{i + 1}个任务...（已耗时 {time.perf_counter() - start_time}")
+
+    # 3. 获取模型结果
+    print(">>> 本地任务完成，检查模型状态...")
+    response = await async_task
+
+    end_time = time.perf_counter()
+    print(f">>> 模型返回: {response.content}")
+    print(f"=== 总运行耗时: {end_time - start_time:.2f}s ===")
+
+
+async def main():
+    """主函数"""
+    await demo_async_invoke()
+
+if __name__ == '__main__':
+    asyncio.run(main())
+
+    
+    
+"""
+=== 演示：ainvoke 的异步（非阻塞）效果 ===
+程序开始...
+>>> 发起异步模型调用 (ainvoke)...
+>>> 模型请求已在后台发送，继续执行本地逻辑...
+>>> 正在执行第1个任务...（已耗时 1.0101718999794684
+>>> 正在执行第2个任务...（已耗时 2.0116139999881852
+>>> 正在执行第3个任务...（已耗时 3.012202099984279
+>>> 本地任务完成，检查模型状态...
+>>> 模型返回: 
+人工智能是让机器模仿、延伸甚至超越人类智能的技术。
+=== 总运行耗时: 3.01s ===
+"""
 ~~~
 
+- astream()使用
 
 
+~~~python
+import asyncio
+import os
+import time
+
+import dotenv
+from langchain.chat_models import init_chat_model
+
+# 1、加载配置文件内容
+dotenv.load_dotenv()
+
+# 2、获取配置文件信息
+API_KEY = os.getenv("API_KEY")
+AI_MODEL = os.getenv("AI_MODEL")
+BASE_URL = os.getenv("BASE_URL")
+
+# 3、模型初始化
+model = init_chat_model(
+    model=AI_MODEL,
+    model_provider="openai",
+    temperature=0,
+    api_key=API_KEY,
+    base_url=BASE_URL
+)
 
 
+async def demo_async_stream():
+    """演示异步调用的非阻塞特性"""
+    print("=== 演示：astream 的异步（非阻塞）效果 ===")
+    start_time = time.perf_counter()  # 记录开始时间
+    print("程序开始...")
+
+    # 1. 发起异步流式请求
+    # 注意：此时请求已发出，返回的是一个异步生成器
+    print(">>> 发起异步流式调用 (astream)...")
+    stream_resp = model.astream("请用一句话解释机器学习的基本概念。")
+
+    # 2. 在等待流式响应的同时，执行其他任务
+    print(">>> 流式请求已发送，程序无需等待，继续执行其他异步任务...")
+    for i in range(3):
+        # 使用 asyncio.sleep 而非 time.sleep
+        # 这允许事件循环在等待时去处理上面的 stream_resp 网络 IO
+        await asyncio.sleep(1)
+        # print(f">>> 正在执行并发任务 {i + 1}... ")
+        print(f">>> 正在执行第{i + 1}个任务...（已耗时 {time.perf_counter() - start_time}")
+
+    # 3. 现在开始处理流式结果
+    print(">>> 模拟任务已完成，开始读取缓冲区中的流式结果...")
+    end_time = time.perf_counter()
+    print(">>> 流式输出：", end="", flush=True)
+    async for chunk in stream_resp:
+        # LangChain 的消息块通常通过 .content 获取内容
+        content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+        print(content, end="", flush=True)
+
+    print("\n>>> 流式输出结束\n")
+    print(f"=== 总运行耗时: {end_time - start_time:.2f}s ===")
 
 
+async def main():
+    """主函数"""
+    await demo_async_stream()
 
 
+if __name__ == '__main__':
+    asyncio.run(main())
+
+    
+"""
+程序开始...
+>>> 发起异步流式调用 (astream)...
+>>> 流式请求已发送，程序无需等待，继续执行其他异步任务...
+>>> 正在执行第1个任务...（已耗时 1.0008461000106763
+>>> 正在执行第2个任务...（已耗时 2.0045424999843817
+>>> 正在执行第3个任务...（已耗时 3.017670300003374
+>>> 模拟任务已完成，开始读取缓冲区中的流式结果...
+>>> 流式输出：
+机器学习是让计算机系统通过从数据中学习规律和模式，来改进其执行特定任务的能力，而无需进行显式编程。
+>>> 流式输出结束
+"""
+~~~
+
+- abatch()使用
+
+~~~python
+import asyncio
+import os
+import time
+
+import dotenv
+from langchain.chat_models import init_chat_model
+
+# 1、加载配置文件内容
+dotenv.load_dotenv()
+
+# 2、获取配置文件信息
+API_KEY = os.getenv("API_KEY")
+AI_MODEL = os.getenv("AI_MODEL")
+BASE_URL = os.getenv("BASE_URL")
+
+# 3、模型初始化
+model = init_chat_model(
+    model=AI_MODEL,
+    model_provider="openai",
+    temperature=0,
+    api_key=API_KEY,
+    base_url=BASE_URL
+)
 
 
+async def demo_async_batch():
+    """演示异步批量的非阻塞特性"""
+    print("=== 演示：abatch 的异步（非阻塞）效果 ===")
+    start_time = time.perf_counter()  # 记录开始时间
+
+    print("程序开始...")
+
+    # 准备批量输入
+    questions = ["用一句话说明深度学习与传统机器学习的区别", "中国首都在哪里？"]
+
+    # 1. 发起异步批量请求
+    # 关键：使用 create_task 将协程放到后台立即执行
+    print(">>> 发起异步批量调用 (abatch)...")
+    batch_task = asyncio.create_task(model.abatch(questions))
+
+    # 2. 在等待批量处理的同时，执行其他业务逻辑
+    print(">>> 批量任务在后台运行，主线程继续执行其他任务...")
+    for i in range(3):
+        # 使用 asyncio.sleep 释放事件循环，让后台网络IO得以执行
+        await asyncio.sleep(1)
+        print(f">>> 正在执行第{i + 1}个任务...（已耗时 {time.perf_counter() - start_time}")
+
+    # 3. 等待批量任务完成，获取全部结果
+    print(">>> 其他任务执行完毕，现在获取后台批量任务的结果...")
+    # batch_task 可能已经执行完成，await 只是拿结果；没完成则阻塞等待
+    responses = await batch_task
+
+    end_time = time.perf_counter()
+
+    for response in responses:
+        content = response.content if hasattr(response, 'content') else str(response)
+        print(f">>> 响应内容: {content}")
+
+    print(f"=== 总运行耗时: {end_time - start_time:.2f}s ===")
 
 
+async def main():
+    """主函数"""
+    await demo_async_batch()
 
+if __name__ == '__main__':
+    asyncio.run(main())
 
-
-
-
-
-
-
-
-
-
-
-
+    
+"""
+=== 演示：abatch 的异步（非阻塞）效果 ===
+程序开始...
+>>> 发起异步批量调用 (abatch)...
+>>> 批量任务在后台运行，主线程继续执行其他任务...
+>>> 正在执行第1个任务...（已耗时 1.0033487000036985
+>>> 正在执行第2个任务...（已耗时 2.012166700005764
+>>> 正在执行第3个任务...（已耗时 3.02751200000057
+>>> 其他任务执行完毕，现在获取后台批量任务的结果...
+>>> 响应内容: 
+深度学习是利用多层神经网络自动学习数据复杂特征表示的传统机器学习的一种更强大的分支。
+>>> 响应内容: 
+中国的首都是**北京** (Běijīng)。
+=== 总运行耗时: 3.03s ===
+"""
+~~~
 
 
 
@@ -1920,69 +2079,570 @@ number 1 to the number 1 equals 2.',
 
 ### 6.2 模型配置信息profile
 
+- profile 属性用于查看模型的能力参数，帮助开发者了解模型的限制：
+
+~~~python
+from rich import print as rprint
+rprint(model.profile)
+~~~
+
+- **常见字段**：
+
+| 字段                   | 含义                            |
+| ---------------------- | ------------------------------- |
+| max_input_tokens       | 最大输入 token 数               |
+| max_output_tokens      | 最大输出 token 数               |
+| supported_input_types  | 支持的输入类型（text, image等） |
+| supported_output_types | 支持的输出类型                  |
+| tool_calling           | 是否支持工具调用                |
+
+- **注意事项**：并非所有模型/平台都支持 profile 属性。OpenRouter 对部分模型有支持，DeepSeek 和 OpenAI 可能返回空值。
 
 
 
+### 6.3 模型初始化参数
+
+- 通过 model_fields 可以查看模型类支持的所有初始化参数：
+
+~~~python
+# 查看 DeepSeek 支持的参数
+print(ChatDeepSeek.model_fields.keys())
+
+# 查看 OpenAI 支持的参数
+print(ChatOpenAI.model_fields.keys())
+~~~
+
+- 使用 init_chat_model 查看
+
+~~~python
+model = init_chat_model(
+    model=AI_MODEL,
+    model_provider="openai",
+    temperature=0,
+    api_key=API_KEY,
+    base_url=BASE_URL
+)
+
+print(model.model_fields.keys())
+~~~
+
+- 得到的参数属性
+
+~~~bash
+dict_keys(['name', 'cache', 'verbose', 'callbacks', 'tags', 'metadata', 'custom_get_token_ids', 'rate_limiter', 'disable_streaming', 'output_version', 'profile', 'client', 'async_client', 'root_client', 'root_async_client', 'model_name', 'temperature', 'model_kwargs', 'openai_api_key', 'openai_api_base', 'openai_organization', 'openai_proxy', 'request_timeout', 'stream_usage', 'max_retries', 'presence_penalty', 'frequency_penalty', 'seed', 'logprobs', 'top_logprobs', 'logit_bias', 'streaming', 'n', 'top_p', 'max_tokens', 'reasoning_effort', 'reasoning', 'verbosity', 'tiktoken_model_name', 'default_headers', 'default_query', 'http_client', 'http_async_client', 'http_socket_options', 'stream_chunk_timeout', 'stop', 'extra_body', 'include_response_headers', 'disabled_params', 'context_management', 'include', 'service_tier', 'store', 'truncation', 'use_previous_response_id', 'use_responses_api'])
+~~~
 
 
 
+### 6.4 模型类参数构成
+
+#### 6.4.1 客户端与连接参数
+
+- 这类参数决定了代码 “怎么连到服务端”，而不是 “让模型怎么生成”。
+
+| 参数名                          | 说明                                                 |
+| ------------------------------- | ---------------------------------------------------- |
+| api_key / openai_api_key        | 鉴权密钥。DeepSeek 通常兼容 OpenAI 接口格式。        |
+| api_base / openai_api_base      | 接口地址（如https://api.deepseek.com）。             |
+| request_timeout                 | 网络请求超时时间。                                   |
+| max_retries                     | 请求失败时的重试次数。                               |
+| http_client / http_async_client | 手动传入 httpx.Client 实例（用于更复杂的网络配置）。 |
+| openai_proxy                    | 代理服务器配置。                                     |
+| default_headers / default_query | 每次请求时默认携带的 HTTP Header 或 Query 参数。     |
 
 
 
+#### 6.4.2 模型推理参数
+
+- 这些是直接传递给 DeepSeek 模型 API 的参数，决定了生成内容的质量和风格。
+
+| 参数名                               | 说明                                                       |
+| ------------------------------------ | ---------------------------------------------------------- |
+| model_name                           | 指定具体的模型（如 deepseek‑chat 或 deepseek‑reasoning）。 |
+| temperature                          | 采样温度，越高越随机。                                     |
+| top_p                                | 核采样参数。                                               |
+| max_tokens                           | 最大输出 token 数。                                        |
+| stop                                 | 停止符列表。                                               |
+| streaming                            | 是否开启流式传输。                                         |
+| n                                    | 生成几个候选回复。                                         |
+| reasoning                            | 是否启用推理模式                                           |
+| reasoning_effort                     | (DeepSeek R1 特色) 控制思考链（COT）的深度。               |
+| presence_penalty / frequency_penalty | 惩罚项 (存在惩罚、频率惩罚)，用于减少内容重复。            |
+| store                                | 是否存储对话。                                             |
+| logit_bias                           | 调整特定词汇出现的概率。                                   |
 
 
 
+#### 6.4.3 框架通用参数
+
+- 由 LangChain 的BaseChatModel定义，所有其子类 ChatXxx 都具备的，用于管理 LangChain 内部的逻辑（如日志、回调、元数据），仅在内部生效。
+
+| 参数名          | 说明                               |
+| --------------- | ---------------------------------- |
+| name            | 给模型实例命名，用于追踪区分       |
+| verbose         | 是否打印详细日志                   |
+| callbacks       | 回调处理器，用于监控 LLM 调用      |
+| tags / metadata | 标签与元数据，用于 LangSmith 追踪  |
+| cache           | 开启缓存，相同输入直接返回缓存结果 |
+| rate_limiter    | 速率限制器，控制 API 调用 QPS      |
 
 
 
+#### 6.4.4 高级与特定扩展参数
+
+这类参数通常用于特定场景，或为了保持与 OpenAI 协议的兼容性而存在。
+
+> DeepSeek 官方文档说明：DeepSeek API 使用与 OpenAI 兼容的 API 格式，通过修改配置，你可以使用 OpenAI SDK 来访问 DeepSeek API，或使用兼容 OpenAI API 的软件。
+
+- **底层客户端访问**: client, async_client, root_client（这些通常是内部生成的 SDK 实例，不建议在初始化时手动传参）。
+- **透传参数**: model_kwargs, extra_body（如果你想传递 DeepSeek API 支持但 LangChain 还没定义的参数，可以写在这里）。
+- **功能开关**: disable_streaming, include_response_headers（决定是否在输出中包含 Header）。
+- **兼容性参数**: openai_organization, service_tier, store（这些多为 OpenAI 遗留参数，DeepSeek 实际使用较少）。
+
+```python
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(
+    # ==========【1.网络连接参数】==========
+    openai_api_key="xxx",
+    openai_api_base="https://api.deepseek.com",
+    request_timeout=60,
+    max_retries=2,
+
+    # ==========【2.模型推理参数】==========
+    model_name="deepseek‑reasoner",
+    temperature=0.7,
+    max_tokens=1024,
+    streaming=True,
+
+    # ==========【3.LangChain框架参数】==========
+    verbose=False,
+    tags=["demo"],
+
+    # ==========【4.高级透传参数】==========
+    extra_body={
+        "reasoning_effort": "high"   # DeepSeek独有，LangChain没有封装，放extra_body透传
+    }
+)
+```
+
+> 关键点：DeepSeek R1 的reasoning_effort这类特有参数，LangChain 没有封装，不能直接写在构造参数，要放到extra_body={...}透传给 API。
 
 
 
+#### 6.4.5 model_kwargs
+
+- 这里用于存放那些OpenAI Compatible API支持，但LangChain没有直接列出的字段，如用于支持Function Call的tools 字段。
+
+
+- 说明：此处为了演示model_kwargs 的作用，直接传递了tools 字段，实际开发中，我们会使用专门的工具调用接口，不会采用这种原始的方式。
+
+
+- 查阅OpenAI Chat Completions文档，可以看到官方支持的所有请求字段。
+
+
+- 上文输出的字段列表不包含tools字段，因此我们需要通过model_kwargs传递。
+
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+from rich import print as rprint
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+model = init_chat_model(
+    model="deepseek:deepseek-v4-flash",
+    model_kwargs={"tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get weather of a location, the user should
+supply a location first.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San
+Francisco, CA",
+                        }
+                    },
+                    "required": ["location"]
+                },
+            }
+        },
+    ]}
+)
+# 向模型发送单条数据
+response = model.invoke("你好，今天北京的天气如何")
+# 打印响应
+rprint(response)
+```
+
+- 输出如下
+
+
+```python
+AIMessage(
+ content='你好！让我帮你查一下北京今天的天气情况。',
+ additional_kwargs={
+     'refusal': None,
+     'reasoning_content':
+'用户想知道北京今天的天气情况。我需要使用get_weather工具来查询北京的天气。让我调用
+这个工具。'
+ },
+ response_metadata={
+     'token_usage': {
+         'completion_tokens': 78,
+         'prompt_tokens': 303,
+         'total_tokens': 381,
+         'completion_tokens_details': {
+             'accepted_prediction_tokens': None,
+             'audio_tokens': None,
+             'reasoning_tokens': 23,
+             'rejected_prediction_tokens': None
+         },
+         'prompt_tokens_details': {'audio_tokens': None,
+'cached_tokens': 256},
+         'prompt_cache_hit_tokens': 256,
+         'prompt_cache_miss_tokens': 47
+     },
+     'model_provider': 'deepseek',
+     'model_name': 'deepseek-v4-flash',
+     'system_fingerprint':
+'fp_8b330d02d0_prod0820_fp8_kvcache_20260402',
+     'id': '6d8e4d22-9e0b-4036-9fe0-a3bdf29c2f97',
+     'finish_reason': 'tool_calls',
+     'logprobs': None
+ },
+ id='lc_run--019e4480-c8df-7f33-87cf-8d978779b0f3-0',
+ tool_calls=[
+     {
+         'name': 'get_weather',
+         'args': {'location': '北京'},
+         'id': 'call_00_BT3PTJVDQlb9C2uhhJkc4856',
+         'type': 'tool_call'
+     }
+ ],
+ invalid_tool_calls=[],
+ usage_metadata={
+     'input_tokens': 303,
+     'output_tokens': 78,
+     'total_tokens': 381,
+     'input_token_details': {'cache_read': 256},
+     'output_token_details': {'reasoning': 23}
+ }
+)
+```
+
+- 可以看到，输出包含了tool_calls 字段，说明工具被模型正确识别了。
 
 
 
+#### 6.4.6 extra_body
+
+- **这里用于存放模型厂商基于OpenAI API协议扩展的字段。**
+
+- 查阅OpenAI Chat Completions文档和DeepSeek对话补全API文档可知，thinking 是DeepSeek扩展的字段，用于控制是否启用思考模式。
+
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+from rich import print as rprint
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+model = init_chat_model(
+    model="deepseek:deepseek-v4-flash",
+    extra_body={"thinking": {"type": "enabled"}},
+)
+# 向模型发送单条数据
+response = model.invoke("你好，一句话回答")
+# 打印响应
+rprint(response)
+```
+
+- 输出如下
+
+
+```python
+AIMessage(
+ content='你好，请问有什么可以帮你的？',
+ additional_kwargs={
+     'refusal': None,
+     'reasoning_content':
+'好的，用户的问题很简单，就是要求“一句话回答”。我需要直接针对用户的指令做出回应，提供
+一句简洁的话。用户没有提出具体问题，所以我的回答可以是一个通用的问候或确认，表明我准备
+就绪。想到了用“你好，请问有什么可以帮你的？”这句话，既符合“一句话”的要求，又自然地开
+启对话，邀请用户提出具体问题。'
+ },
+ response_metadata={
+     'token_usage': {
+         'completion_tokens': 87,
+         'prompt_tokens': 8,
+         'total_tokens': 95,
+         'completion_tokens_details': {
+             'accepted_prediction_tokens': None,
+             'audio_tokens': None,
+             'reasoning_tokens': 78,
+             'rejected_prediction_tokens': None
+         },
+         'prompt_tokens_details': {'audio_tokens': None,
+'cached_tokens': 0},
+         'prompt_cache_hit_tokens': 0,
+         'prompt_cache_miss_tokens': 8
+     },
+     'model_provider': 'deepseek',
+     'model_name': 'deepseek-v4-flash',
+     'system_fingerprint':
+'fp_8b330d02d0_prod0820_fp8_kvcache_20260402',
+     'id': '6da3303d-c432-4a10-b9a3-0b28ab7ccb0d',
+     'finish_reason': 'stop',
+     'logprobs': None
+ },
+ id='lc_run--019e4485-3a34-7c12-aba8-9a53ce0fd4c5-0',
+ tool_calls=[],
+ invalid_tool_calls=[],
+ usage_metadata={
+     'input_tokens': 8,
+     'output_tokens': 87,
+     'total_tokens': 95,
+     'input_token_details': {'cache_read': 0},
+     'output_token_details': {'reasoning': 78}
+ }
+)
+```
+
+- 输出包含了reasoning_content，说明启用了思考模式。与extra_body={"thinking": {"type": "disabled"}}, 可以对比。
+
+
+```python
+AIMessage(
+ content='好的，我们一步一步来分析这个数学问题。题目是：\n\n2 + 3 * 2 =
+？\n\n根据数学中的运算顺序规则（通常称为“先乘除，后加减”），我们应该先计算乘法部分。
+\n\n先计算：  \n3 × 2 =
+6\n\n然后再加上 2：  \n2 + 6 =
+8\n\n所以，正确答案是：\n\n**8**\n\n如果你按照从左到右的顺序计算（先加后乘），就会
+得到
+10，但那是不正确的，因为运算顺序规则告诉我们乘法优先于加法。希望这个解释对你有帮
+助！',
+ additional_kwargs={'refusal': None},
+ response_metadata={
+     'token_usage': {
+         'completion_tokens': 119,
+         'prompt_tokens': 14,
+         'total_tokens': 133,
+         'completion_tokens_details': None,
+         'prompt_tokens_details': {'audio_tokens': None,
+'cached_tokens': 0},
+         'prompt_cache_hit_tokens': 0,
+         'prompt_cache_miss_tokens': 14
+     },
+     'model_provider': 'deepseek',
+     'model_name': 'deepseek-v4-flash',
+     'system_fingerprint':
+'fp_8b330d02d0_prod0820_fp8_kvcache_20260402',
+     'id': 'ffca80fc-cfe8-4cdd-831a-3ed760c713c6',
+     'finish_reason': 'stop',
+     'logprobs': None
+ },
+ id='lc_run--019e4489-0479-77c0-b4e7-b507956e10cc-0',
+ tool_calls=[],
+ invalid_tool_calls=[],
+ usage_metadata={
+     'input_tokens': 14,
+     'output_tokens': 119,
+     'total_tokens': 133,
+     'input_token_details': {'cache_read': 0},
+     'output_token_details': {}
+ }
+)
+```
+
+- 不包含reasoning_content，说明没有启用思考模式
 
 
 
+### 6.5 config参数
+
+- 在调用模型时（如使用 invoke()、ainvoke()、stream()、batch()等方法时），我们可以传入config参数。
 
 
+```python
+def invoke(
+    self,
+    input: LanguageModelInput,
+    config: RunnableConfig | None = None,
+    *,
+    stop: list[str] | None = None,
+    **kwargs: Any,
+) -> AIMessage
+```
+
+- config参数：允许在调用模型时，<font color="red">**动态地配置和控制模型的行为**</font>，而无需在初始化时就固定所有参数，这为应用带来了极大的灵活性和可维护性。
 
 
+- 关于config中可配参数的解释参考：<https://reference.langchain.com/python/langchain-core/runnables/config/RunnableConfig>
 
 
+- 举例：
 
 
+```python
+deepseek_llm.invoke(
+    "你好",
+    config={
+        "run_name": "...",                 # 在LangSmith中这次运行会显示为指定名称
+        "tags": ["test", "development"],   # 打上标签便于分类查找
+        "metadata": {"user_id": "123"},    # 记录用户ID
+        "callbacks": [custom_handler],     # 启用自定义回调函数
+        "configurable":{
+            "model": "deepseek-reasoner",  # 配置模型参数
+            "temperature": 0.7,            # 配置温度参数
+            "max_tokens": 100              # 配置最大令牌数
+        }
+    }
+)
+```
+
+- config中支持配置的参数如下：
 
 
+| 配置项          | 类型                      | 描述                                                         |
+| --------------- | ------------------------- | ------------------------------------------------------------ |
+| run_name        | str                       | 为当前运行设置一个可读的名称。如在LangSmith追踪系统中快速定位和识别不同的运行任务。 |
+| tags            | List[str]                 | 为运行设置标签，用于分类和过滤。如在LangSmith追踪系统中快速定位和识别不同的运行任务。 |
+| callbacks       | List[BaseCallbackHandler] | 设置回调处理器，在运行的不同阶段（开始、流输出、结束等）触发。与一些监控平台（如LangSmith）集成进行深度追踪和调试。 |
+| metadata        | Dict[str,Any]             | 附加任意的键值对元数据。记录本次调用的业务上下文，如{"user_id": "123", "session_id": "abc"} |
+| max_concurrency | int                       | 限制当前可运行对象的最大并发运行数。防止对API接口或本地资源造成过大压力，实现简单的速率限制。 |
+| recursion_limit | int                       | 限制运行时递归调用的最大深度。主要在复杂的工作流（如Agent执行多步工具调用）中，防止出现无限递归循环。 |
+| configurable    | Dict[Str,Any]             | 一个万能字典，用于传递其他可配置参数。实现更高级的动态行为，如配置可替代的模型或组件。 |
+
+- 说明如下：
+
+  - config中参数run_name 、tags 、callbacks 主要用在LangSmith中，用于追踪、筛选和调试。
+  - metadata 可以配置用户指定的一些信息，在工作流开发中，当整个流程被包装为Runnable链时，可以将这些参数传递给后续的链节点使用。
+
+  - configurable 中可配置的参数与init_chat_model 初始化模型参数一样，与在初始化模型时设置的参数（如 temperature=0.7）的关键区别在于：
+
+    - init_chat_model初始化参数：模型的默认设置，适用于该模型实例的大部分场景。
 
 
+    - 运行时 config：单次调用的特定设置，优先级更高，针对本次调用进行的特殊调整。
 
 
+- 举例1：当需要处理大量输入时，为了避免对模型服务造成过大压力或触发速率限制，在config中使用max_concurrency参数控制最大并行数。
 
 
+```python
+large_list_of_inputs = [....,....,....]
+
+model.batch(
+    large_list_of_inputs,
+    config={
+        'max_concurrency': 5  # 限制最大并发数为5
+    }
+)
+```
+
+- 举例2：
 
 
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+from rich import print as rprint
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL")
+
+# 1. 初始化模型
+model = init_chat_model(
+    model="deepseek-v4-flash",
+    model_provider="deepseek",
+    api_key=DEEPSEEK_API_KEY,
+    base_url=DEEPSEEK_BASE_URL,
+    temperature=0.2,
+    max_tokens=500,
+    # 指定可调整参数
+    configurable_fields=("model", "model_provider", "temperature",
+"max_tokens"),
+)
+
+# 2. 准备 config 字典
+config = {
+    "run_name": "joke_generation",      # 在LangSmith中这次运行会显示为"joke_generation"
+    "tags": ["tag1", "tag2"],           # 打上标签便于分类查找
+    "metadata": {"user_id": "123"},     # 记录用户ID
+    "configurable":{
+        "model": "deepseek-v4-pro",     # 配置模型参数
+        "model_provider": "openai",     # 配置模型提供商参数
+        "temperature": 0.7,             # 配置温度参数
+        "max_tokens": 1000              # 配置最大令牌数
+    }
+}
+
+# 3. 调用模型并传入config
+response = model.invoke(
+    "1 + 2 = ？",
+    config=config
+)
+
+rprint(response)
 
 
+"""
+AIMessage(
+    content='1 + 2 = 3',
+ additional_kwargs={'refusal': None},
+ response_metadata={
+     'token_usage': {
+            'completion_tokens': 65,
+            'prompt_tokens': 11,
+            'total_tokens': 76,
+         'completion_tokens_details': {
+             'accepted_prediction_tokens': None,
+             'audio_tokens': None,
+             'reasoning_tokens': 57,
+                'rejected_prediction_tokens': None
+            },
+            'prompt_tokens_details': {'audio_tokens': None,
+'cached_tokens': 0},
+            'prompt_cache_hit_tokens': 0,
+            'prompt_cache_miss_tokens': 11
+        },
+        'model_provider': 'openai',
+        'model_name': 'deepseek-v4-pro',
+        'system_fingerprint':
+'fp_9954b31ca7_prod0820_fp8_kvcache_20260402',
+        'id': 'aaccc23c-323e-40e9-a246-66fb4e2356ab',
+        'finish_reason': 'stop',
+        'logprobs': None
+    },
+    id='lc_run--019e4498-b166-7d51-bd8d-56ec5faac32a-0',
+    tool_calls=[],
+    invalid_tool_calls=[],
+    usage_metadata={
+        'input_tokens': 11,
+        'output_tokens': 65,
+        'total_tokens': 76,
+        'input_token_details': {'cache_read': 0},
+        'output_token_details': {'reasoning': 57}
+    }
+)
+"""
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- 说明：<font color="red">**配置configurable覆盖默认参数时需要在“init_chat_model”初始化模型中指定“configurable_fields”参数来指定模型运行时可替换的参数有哪些。**</font>
 
 
 
@@ -2020,6 +2680,75 @@ number 1 to the number 1 equals 2.',
   - **开发调试阶段**：优先使用 **Tracing** 和 **Playground**，快速定位问题和验证逻辑。
   - **迭代优化阶段**：结合 **Datasets & Experiments** 和 **Evaluators**，量化评估不同方案的效果。
   - **生产上线后**：重点关注 **Monitoring**，实时监控应用健康状态和成本消耗。
+
+
+
+#### 1.2.1 核心应用与开发
+
+**1、Tracing（追踪）**
+
+- **功能：**这是 LangSmith 最核心的功能。它会完整记录你大模型应用的每一次调用链路（Trace）。
+- **作用：**当你的 Agent（智能体）或 RAG 系统运行变慢或报错时，点击进入对应的项目（如上图中的 `langchain1.2_smith`），你可以看到每一步具体的 Prompt 是什么、模型返回了什么、消耗了多少 Token，以及每一个链条节点的耗时，非常方便排查 Bug 和优化性能。
+
+**2、Monitoring（监控）**
+
+- **功能：**提供生产环境的高级数据可视化看板。
+- **作用：**帮你从宏观角度监控应用在一段时间内的运行状况。你可以看到 Token 消耗趋势、QPS（每秒请求数）、错误率、平均延迟（Latency）以及成本预估。适合应用上线后观察系统的稳定性和开销。
+
+**3、Datasets & Experiments（数据集与实验）**
+
+- **功能：**用于管理测试数据集并运行对比实验。
+- **作用：**你可以把用户的真实输入、特定的边界情况（Edge Cases）存为数据集。当你修改了 Prompt 或更换了底层大模型时，可以在这里运行自动化对比测试，直观看到新旧版本在同一批测试集上的表现差异。
+
+**4、Evaluators（评估器）**
+
+- **功能：**配置和自动化评估任务。
+- **作用：**大模型的输出往往难以用传统的断言（Assert）来测试。这里允许你配置基于规则（如关键词匹配）或基于模型（LLM-as-a-judge）的评估指标（如：答案相关性、是否包含幻觉等），对追踪到的数据或实验结果进行自动打分。
+
+**5、Annotation Queues（标注队列）**
+
+- **功能：**人工反馈与数据清洗工具。
+- **作用：**在应用开发或初上线阶段，你可以把一部分痕迹（Traces）发送到标注队列中，让团队中的核心成员、业务专家或人工客服进行手动打分、纠正回答或贴标签，这些高质量的人工标注数据后续可直接用于微调模型或充当测试集。
+
+
+
+#### 1.2.2 提示词与调试工具
+
+**1、Prompts（提示词管理）**
+
+- **功能：**类似“提示词版的 GitHub”。
+- **作用：**把 Prompt 从代码中解耦出来，统一在云端管理。你可以在这里对 Prompt 进行版本控制（如 v1、v2），直接在代码中通过 API 动态拉取最新的提示词。它还支持团队协作和 Prompt 的分享。
+
+**2、Playground（演练场）**
+
+- **功能：**一个网页端的模型交互界面。
+- **作用：**无需写任何代码，直接在这里选择不同的模型（如 OpenAI、Anthropic 或是本地模型），快速微调并测试你的 Prompt 效果，还可以一键将调整好的 Prompt 保存到上方的 Prompts 仓库中。
+
+**3、Studio（工作室）**
+
+- **功能：**通常与 LangGraph 深度集成，提供可视化的图形交互界面。
+- **作用：**如果你的应用是基于图结构（Graph-based）的复杂复杂 Agent 架构，Studio 可以让你可视化地看到状态机（State）在各个节点之间的流转，甚至支持在某个节点“暂停”，手动修改数据后再继续向下执行，是调试复杂智能体交互的利器。
+
+**4、Context Hub（上下文中心）**
+
+- **功能：**管理全局上下文或通用组件配置。
+- **作用：**用于存放可在多个项目或 Prompt 中复用的公共上下文模板、全局变量或系统预设提示。
+
+
+
+#### 1.2.3 部署与沙盒
+
+**1、Deployments（部署）**
+
+- **功能：**一键将你的 LangChain 应用或 LangGraph Agent 部署为线上可用的 API 服务（通常依托于 LangGraph Cloud）。
+- **作用：**提供开箱即用的生产端点，帮你处理高并发、队列管理和状态持久化，让你专注于编写业务逻辑。
+
+**2、Sandboxes（沙盒）**
+
+- **功能：**提供轻量级的在线运行和测试环境。
+- **作用：**在不污染生产环境的前提下，供开发人员安全地试运行、测试新部署的 Agent 或执行自动化脚本。
+
+> **建议：**现阶段大家可以重点关注 Tracing（观察你的项目里的调用细节）和 Playground（快速调优提示词）。当你的应用结构开始走向复杂（比如引入了复杂的 RAG 检索或多 Agent 协同）时，再逐步引入 Datasets 进行量化评估，并利用 Studio 进行可视化调试。
 
 
 
@@ -2075,7 +2804,129 @@ LANGSMITH_PROJECT="LangChainDemo"
 
 - **添加上述环境变量后，在程序中通过load_dotenv()加载，而后运行 LangChain 代码，LangSmith 会自动记录运行指标，并同步至后台服务，我们可以在 LangSmith 官网查看运行记录**
 
-![LangSmith监控日志](图片/LangSmith监控日志.png)
+- **步骤1：运行任意LangChain程序**
+
+举例1：
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain_deepseek import ChatDeepSeek
+
+# 将env文件中的变量加载为环境变量
+#override=True：表示.env优先
+load_dotenv(override=True)
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL")
+
+model = ChatDeepSeek(
+    api_key=DEEPSEEK_API_KEY,
+    api_base=DEEPSEEK_BASE_URL,
+    model_name="deepseek-v4-flash"
+)
+
+print(model.invoke("你好"))
+```
+
+举例2：
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+
+load_dotenv(override=True)
+
+CLOSEAI_API_KEY=os.getenv("CLOSEAI_API_KEY")
+CLOSEAI_BASE_URL=os.getenv("CLOSEAI_BASE_URL")
+
+model = init_chat_model(model="deepseek-v4-flash",
+                        model_provider="openai",
+                        api_key=CLOSEAI_API_KEY,
+                        base_url=CLOSEAI_BASE_URL)
+
+print(model.invoke("你好，用一句话回答"))
+```
+
+举例3：
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+from rich import print as rprint
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL")
+
+# 1. 初始化模型
+model = init_chat_model(
+    model="deepseek-v4-flash",
+    model_provider="deepseek",
+    api_key=DEEPSEEK_API_KEY,
+    base_url=DEEPSEEK_BASE_URL,
+    temperature=0.2,
+    max_tokens=500,
+    # 指定可调整参数
+    configurable_fields=("model", "model_provider", "temperature",
+                         "max_tokens"),
+)
+
+# 2. 准备 config 字典
+config = {
+    "run_name": "joke_generation",  # 在LangSmith中这次运行会显示为"joke_generation"
+    "tags": ["my_tag1", "my_tag2"],  # 打上标签便于分类查找
+    "metadata": {
+        "user_id": "shkstart",      # 记录用户ID
+        "session_id": "sess_123"    # 记录会话ID
+    },
+    "configurable": {
+        "model": "deepseek-v4-pro",  # 配置模型参数
+        "model_provider": "openai",  # 配置模型提供商参数
+        "temperature": 0.7,  # 配置温度参数
+        "max_tokens": 1000  # 配置最大令牌数
+    }
+}
+
+# 3. 调用模型并传入config
+response = model.invoke(
+    "1 + 2 = ？",
+    config=config
+)
+
+rprint(response)
+```
+
+- **步骤2：打开监控界面**
+
+![Tracing项目列表](图片/11-tracing-project.png)
+
+此时在 LangSmith 官方 WebUI 的 Tracing 界面下，可以看到按照 LANGSMITH_PROJECT 命名的项目。
+
+- **步骤3：查看运行指标**
+
+点击条目任意位置可以进入详情页面。
+
+![运行指标详情](图片/12-run-details.png)
+
+此处列出了详细的运行指标，点击某次运行记录，可以查看更详细的信息，自行探索。
+
+- **步骤4：查看运行报表**
+
+![选择Monitoring项目](图片/13-monitoring-project.png)
+
+此处提供了大量指标的报表。
+
+![Monitoring指标报表](图片/14-monitoring-traces.png)
+
+点击上述标签或下滑页面可以切换指标。
+
+![LLM Calls与Cost Tokens报表](图片/15-monitoring-llm-calls.png)
 
 
 
@@ -2749,6 +3600,13 @@ if __name__ == '__main__':
 
   - 对于复杂的对话（带图片或工具结果），建议使用content_blocks列表形式构建HumanMessage或AIMessage
   - 借助content_blocks，可以使用一套标准代码，无缝在不同厂商的模型之间切换
+  - content 的字典列表形式存在一个严重问题：**不同模型供应商的格式不统一**。例如：
+
+    - OpenAI 使用 {"type": "image_url", "image_url": ...} 格式
+    - Anthropic 使用完全不同的格式
+    - 切换模型供应商时，需要修改代码中的消息格式
+
+    - LangChain 1.x 引入 content_blocks 字段，提供跨模型供应商的标准化多模态数据结构。无论底层是 OpenAI、Anthropic 还是其他模型，使用统一的 content_blocks 格式即可
 
   ~~~python
   import os
@@ -2793,9 +3651,9 @@ if __name__ == '__main__':
               "text": "这张图片是什么"
           },
           {
-              "type": "image",
-              "base64": base64_img,
-              "mime_type": "image/png"
+              "type": "image",				# 统一类型标识
+              "base64": base64_img,			# Base64 编码的图片数据
+              "mime_type": "image/png"		# MIME 类型
           }
       ])
   ]
@@ -2811,7 +3669,13 @@ if __name__ == '__main__':
   - content_blocks还可以用于输出格式化，不同厂商模型的输出格式可能不同
   - content_blocks提供了统一的输出格式，将不同格式的响应统一为标准格式
   - 注意：<font color="red">**content_blocks是懒加载的，调用到的时候才会解析**</font>
-
+  - 以 DeepSeek 的思考模型为例，模型输出包含 reasoning_content（思考过程）字段：
+  
+    - response.content：只返回最终回复文本
+    - response.content_blocks：同时返回思考过程和最终回复
+  
+    - 这对于需要回传思考过程给模型（如 DeepSeek 要求带 reasoning 字段）的场景非常有用。
+  
   ~~~python
   import os
   import base64
@@ -2893,7 +3757,114 @@ if __name__ == '__main__':
   ~~~
 
 
+
 ## 2、提示词模板
+
+### 2.1 为什么推荐提示词模板
+
+- 在 LangChain 开发中，构造提示词既可以直接使用 Python 字符串拼接（如 f-string、format() 或+），也可以使用 LangChain 提供的 PromptTemplate 或 ChatPromptTemplate
+
+
+
+#### 2.1.1 字符串拼接方式
+
+~~~python
+# 字符串拼接
+topic = "Python"
+difficulty = "初学者"
+
+# 难以维护，容易出错
+prompt_str = f"你是一个{difficulty}级别的编程导师。请用简单易懂的语言解释{topic}。"
+
+response = model.invoke(prompt_str)
+print(f"AI 回复：{response.content}...\n
+~~~
+
+- 优点✅：
+  - 简单直接，上手快
+  - 适合临时 demo
+  - 无额外学习成本
+- 缺点❌：
+  - 可读性差（变量多时混乱）
+  - 不易维护（修改容易出错）
+  - 无变量校验（容易漏/拼错）
+  - 难以支持复杂场景（多轮对话 / RAG / Few-shot）
+
+
+
+#### 2.1.2 提示词模板
+
+- PromptTemplate.from_template()方式
+
+~~~python
+from langchain.prompts import PromptTemplate
+
+topic = "Python"
+difficulty = "初学者"
+
+template = PromptTemplate.from_template(
+"你是一个{difficulty}级别的编程导师。请用简单易懂的语言解释{topic}。"
+)
+
+# 使用模板生成提示词
+prompt = template.format(difficulty=difficulty, topic=topic)
+
+response = model.invoke(prompt)
+print(f"AI 回复：{response.content}...\n"
+~~~
+
+- ChatPromptTemplate方式
+
+~~~python
+from langchain_core.prompts import ChatPromptTemplate
+
+prompt_template = ChatPromptTemplate([
+	("system", "你是一个AI开发工程师. 你的名字是 {name}."),
+	("human", "{user_input}")
+])
+
+#调用format()方法，返回字符串
+prompt = prompt_template.invoke({"name":"小谷AI", "user_input":"你能帮我做什么?"})
+response = model.invoke(prompt)
+
+print(f"AI 回复：{response.content}...\n")
+~~~
+
+- 优点✅：
+  - 结构清晰（变量占位）
+  - 易维护、可复用
+  - 自动变量校验（更安全）
+  - 支持复杂场景（对话 / RAG / Agent）
+  - 可与 LangChain 生态无缝集成
+  - 便于调试与日志追踪
+- 缺点❌：
+  - 有一定学习成本
+  - 初期写法略复杂
+  - 对极简单场景略“重”
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3396,3 +4367,250 @@ print(f"关键词列表：{response.keywords}")
 """
 ~~~
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 七、智能体
+
+## 1、理解智能体
+
+- 通用人工智能（AGI）将是 AI 的终极形态，几乎已成为业界共识。同样，构建智能体（Agent）则是 AI 工程应用当下的 “终极形态”，即 Agent 是大模型应用开发的核心。
+
+![理解Agent](图片/理解Agent.png)
+
+
+
+### 1.1 什么是 Agent?
+
+- 在大模型应用开发中，智能体通常指一种<font color="red">**以大语言模型为推理与决策核心**</font>，结合<font color="red">**记忆、工具调用**</font>与环境交互能力，能够进行<font color="red">**规划决策并执行复杂任务**</font>以达成目标的软件系统。
+
+- **Agent 的关键能力**
+
+  - 理解用户问题
+
+  - 如何拆解任务
+
+  - 判断是否需要工具
+
+  - 需要调用哪些工具
+
+  - 如何利用好工具结果生成回答 & 推进任务
+
+
+
+### 1.2 Agent 核心组件
+
+![Agent](图片/Agent.png)
+
+- 实际开发中几个要素并不需要同时出现，一句话总结
+
+  - 必须的：<font color="red">**行动**</font>（Action）
+
+  - 几乎总是存在的：<font color="red">**工具**</font>（Tool）
+
+  - 有条件存在的：<font color="red">**规划决策**</font>（Planning）
+
+  - 最容易被省略的：<font color="red">**记忆**</font>（Memory）
+
+
+
+### 1.3 Agent创建与调用
+
+#### 1.3.1 历史版本
+
+- 在 LangChain 0.x 时代，框架内的 Agent 系统经历了 “碎片化” 阶段。当时的设计理念是<font color="red">**“针对场景设计特定 Agent”**</font>：
+  - 如果你要实现思维链推理（ReAct），就用 <font color="red">**create_react_agent**</font>
+  - 如果需要结构化输出，就用 <font color="red">**create_structured_chat_agent**</font>
+  - 要工具调用，则用 <font color="red">**create_tool_calling_agent**</font>
+- 举例：❌ v0.x 的复杂方式
+
+```python
+# 需要多个步骤
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain_core.prompts import PromptTemplate
+
+# 1. 模型初始化
+model = ChatOpenAI(model="gpt-4o-mini")
+
+# 2. 创建提示词模板
+prompt = PromptTemplate.from_template("""
+You are a helpful assistant.
+
+Tools: {tools}
+Tool Names: {tool_names}
+
+{agent_scratchpad}
+""")
+
+# 3. 创建 agent
+agent = create_react_agent(
+    llm=model,
+    tools=tools,
+    prompt=prompt
+)
+
+# 4. 创建 executor
+executor = AgentExecutor(
+    agent=agent,
+    tools=tools,
+    verbose=True
+)
+
+# 5. 调用
+result = executor.invoke({"input": "问题"})
+```
+
+这种方式灵活，但也带来了三个明显问题：
+
+1. <font color="red">**心智负担高**</font>—— 每种 Agent 都要单独记忆 API 与参数；
+2. <font color="red">**可组合性差**</font>—— 多个 Agent 之间无法统一调度；
+3. <font color="red">**生态碎片化**</font>—— 不同模块难以复用或协同演化。
+
+
+
+#### 1.3.2 全新的调用
+
+- LangChain 在 1.0 版本后，团队做出了彻底重构：将所有 Agent 的创建方式统一为一个入口：<font color="red">**create_agent()**</font>。它取代了旧版本中的 create_react_agent、create_json_agent、create_tool_calling_agent 等多种分支函数，真正让开发者用一行代码即可创建任何类型的智能体。
+
+- 同时在底层通过 “中间件机制（Middleware）” 和 “标准模型接口（invoke /stream）” 实现全局统一。这让框架更轻、更稳，也更易于被集成到其他 Agent 平台中。
+
+- 举例：✅ v1.x 的简洁方式：
+
+~~~python
+from langchain.chat_models import init_chat_model
+from langchain.agents import create_agent
+
+# 1. 初始化模型
+model = init_chat_model("gpt-4o-mini", model_provider="openai")
+
+# 2. 创建 agent（一步完成）
+agent = create_agent(
+    model=model,
+    tools=[tool1, tool2],
+    system_prompt="Agent 的行为指令"  # 可选
+)
+
+# 3. 调用
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "问题"}]
+})
+~~~
+
+
+
+## 2、Agent 的基本用法1
+
+- Agent 的基本用法1：<font color="red">**模型的传入方式**</font>
+- 在 LangChain1.2 中，create_agent是构建智能体的核心方式，底层基于 LangGraph 实现。
+- <font color="red">**create_agent 完整参数**</font>：
+
+```python
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model: str | BaseChatModel,        # 必需：聊天模型
+    tools: List[BaseTool],             # 必需：工具列表
+    *,
+    system_prompt: str = "",           # 系统提示词
+    middleware: Sequence[AgentMiddleware[StateT_co, ContextT]] = (), # 中间件
+    interrupt_before: List[str] = None, # 在某些工具前暂停（人机协作）
+    interrupt_after: List[str] = None,  # 在某些工具后暂停
+    debug: bool = False,                # 调试模式
+    name: str | None = None,            # 设置模型名称
+)
+```
+
+- Agent 在创建时，涉及到**模型 (Agent 使用的模型)**、**可调用工具**、**系统提示词**等参数的设置。
+  - 更多参数参考： https://reference.langchain.com/python/langchain/agents/factory/create_agent

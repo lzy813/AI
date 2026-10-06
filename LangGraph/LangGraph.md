@@ -522,4 +522,198 @@ with open(png_filename, "wb") as f:
 
 
 
-1.1 
+### 1.1 TypedDict方式
+
+- TypedDict 是 Python 内置的类型化字典，使用字典语法访问字段。LangGraph 官方推荐的首选方式
+
+~~~python
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict, Annotated
+from operator import add
+
+
+class OverAllState(TypedDict):
+    logs: Annotated[list[str], add]
+    cur_id: str
+
+
+def node_1(state: OverAllState) -> OverAllState:
+    pre_id = state["cur_id"]
+    return {
+        "logs": ["node_1 运行完毕"],
+        "cur_id": pre_id + ", node_1"
+    }
+
+
+def node_2(state: OverAllState) -> OverAllState:
+    pre_id = state["cur_id"]
+    return {
+        "logs": ["node_2 运行完毕"],
+        "cur_id": pre_id + ", node_2"
+    }
+
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_1", node_1)
+builder.add_node("node_2", node_2)
+builder.add_edge(START, "node_1")
+builder.add_edge("node_1", "node_2")
+builder.add_edge("node_2", END)
+
+graph = builder.compile()
+print(graph.invoke({"cur_id": "start"}))
+~~~
+
+- 输出：{'logs': ['node_1 运行完毕', 'node_2 运行完毕'], 'cur_id': 'start, node_1, node_2'}
+
+
+
+### 1.2 dataclass方式
+
+- 属性调用方式由 ['字段名'] 变为 .字段名
+
+~~~python
+from langgraph.graph import StateGraph, START, END
+from typing import Annotated
+from dataclasses import dataclass
+from operator import add
+
+
+@dataclass
+class OverAllState:
+    logs: Annotated[list[str], add]
+    cur_id: str
+
+
+def node_1(state: OverAllState) -> OverAllState:
+    pre_id = state.cur_id
+    return OverAllState(
+        logs=state.logs + ["node_1 运行完毕"],
+        cur_id=pre_id + ", node_1"
+    )
+
+
+def node_2(state: OverAllState) -> OverAllState:
+    pre_id = state.cur_id
+    return OverAllState(
+        logs=state.logs + ["node_2 运行完毕"],
+        cur_id=pre_id + ", node_2"
+    )
+
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_1", node_1)
+builder.add_node("node_2", node_2)
+builder.add_edge(START, "node_1")
+builder.add_edge("node_1", "node_2")
+builder.add_edge("node_2", END)
+
+
+graph = builder.compile()
+print(graph.invoke({"cur_id": "start"}))
+~~~
+
+- @dataclass 是 Python 的装饰器，用于自动生成 __init__、__repr__ 等方法
+- 使用点号（.）方式访问属性，而非字典的中括号方式
+- 返回时可以返回字典，LangGraph 会自动处理转换
+- 也可以返回 dataclass 实例
+
+
+
+### 1.3 Pydantic方式
+
+- Pydantic 的 BaseModel 提供数据校验能力，字段访问方式与 dataclass 相同（点号访问）
+
+~~~python
+from langgraph.graph import StateGraph, START, END
+from typing import Annotated
+from pydantic import BaseModel
+from operator import add
+
+# 1. 定义状态（使用 Pydantic BaseModel）
+class OverAllState(BaseModel):
+    logs: Annotated[list[str], add]
+    cur_id: str
+
+# 2. 定义节点
+def node_1(state: OverAllState) -> OverAllState:
+    pre_id = state.cur_id
+    return {
+        "logs": ["node_1 运行完毕"],
+        "cur_id": pre_id + ", node_1"
+    }
+
+def node_2(state: OverAllState) -> OverAllState:
+    pre_id = state.cur_id
+    return {
+        "cur_id": pre_id + ", node_2"
+    }
+
+# 3. 定义边
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node(node_1)
+builder.add_node(node_2)
+builder.add_edge(START, "node_1")
+builder.add_edge("node_1", "node_2")
+builder.add_edge("node_2", END)
+
+graph = builder.compile()
+
+# 4. 运行（可以传字典，Pydantic 会自动解析）
+result = graph.invoke({"cur_id": "start"})
+print(result)
+# 输出: {'logs': ['node_1 运行完毕'], 'cur_id': 'start, node_1, node_2'}
+~~~
+
+- 使用 BaseModel 作为状态类的父类
+- 字段访问使用点号方式 state.cur_id
+- invoke 时传入字典，Pydantic 会自动解析为模型对象
+- 注意输出中 logs 只有 node_1 的记录，因为 node_2 没有返回 logs 字段，而 Pydantic 不会保留未更新的字段默认值
+
+
+
+### 1.4 总结
+
+- 在 LangGraph 中，三种方式都有字段校验，但校验机制不同：
+
+| 方式          | 校验行为                             | 异常类型        |
+| ------------- | ------------------------------------ | --------------- |
+| **TypedDict** | 将字段视为字典 Key，Key 不匹配抛异常 | KeyError        |
+| **dataclass** | 将字段视为类属性，属性不匹配抛异常   | TypeError       |
+| **Pydantic**  | 字段不匹配抛异常                     | ValidationError |
+
+- **重要区别**：在 LangChain 中只有 Pydantic 有严格校验；但在 LangGraph 中，三种方式都会进行校验。
+
+- 节点返回字段与状态字段不匹配时
+  - 如果节点返回的字段名与状态定义的字段名不匹配，三种方式的行为是统一的：**该更新会被忽略**，不会影响全局状态。
+
+- 推荐使用 TypedDict 的原因
+
+  - **功能无差异**：三种方式在 LangGraph 中都会进行字段校验
+
+  - **更贴近状态更新机制**：LangGraph 的状态更新本质上是字典更新，TypedDict 最自然
+
+  - **轻量级**：不引入额外的数据校验开销
+
+  - **官方首选**：大多数官方文档和示例都使用 TypedDict
+
+  - **简洁清晰**：写法最简洁，结构最清晰
+
+
+
+## 2、状态合并
+
+### 2.1 定义
+
+- State Reducer 是 LangGraph 中用于合并状态更新的核心机制。在 LangGraph 的 stateGraph 中，每个节点可以读取和写入共享状态，而 Reducer 定义了如何将多个节点对同一状态键的更新合并
+
+- **Reducer 的核心特征：**
+
+  - 函数签名：(value, value) -> value，接收当前值和更新值，返回合并后的新值
+  - 注解定义：通过 Annotated[Type, reducer_function] 为状态键指定 Reducer
+
+  - 默认行为：未指定 Reducer 的状态键使用覆盖策略（Last‑Write‑Wins）
+
+
+
+2
