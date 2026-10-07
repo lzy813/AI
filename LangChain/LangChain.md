@@ -4163,10 +4163,10 @@ def __init__(self,
   -> ChatPromptTemplate
 ```
 
-- 结论：参数是列表类型，列表的元素可以是字符串、字典、字符串构成的元组、消息类型、提示词模板类型、消息提示词模板类型等
+- 结论：<font color="red">**参数是列表类型，列表的元素可以是字符串、字典、字符串构成的元组、消息类型、提示词模板类型、消息提示词模板类型等**</font>
 
 
-- **类型1：str列表类型**：列表参数格式是str类型（不推荐），**因为默认角色都是human**
+- <font color="red">**类型1：str列表类型**</font>：列表参数格式是str类型（不推荐），**因为默认角色都是human**
 
 ```python
 #1.导入相关依赖
@@ -4190,7 +4190,7 @@ print(messages)
 messages=[HumanMessage(content='Hello, 小谷AI!', additional_kwargs={},response_metadata={})]
 ```
 
-- **类型2：tuple列表类型**：列表参数格式是元组类型
+- <font color="red">**类型2：tuple列表类型**</font>：列表参数格式是元组类型
 
 ```python
 # 示例: 元组形式的消息
@@ -4206,7 +4206,7 @@ print(prompt.invoke({"role":"小智"}))
 messages=[SystemMessage(content='你的名字是小智.', additional_kwargs={},response_metadata={}), HumanMessage(content='很高兴认识你',additional_kwargs={}, response_metadata={})]
 ```
 
-**类型3：dict列表类型**：列表参数格式是dict类型
+- <font color="red">**类型3：dict列表类型**</font>：列表参数格式是dict类型
 
 ```python
 # 示例: 字典形式的消息
@@ -4222,7 +4222,7 @@ print(prompt.invoke({"role":"小智"}))
 messages=[SystemMessage(content='你的名字是小智.', additional_kwargs={},response_metadata={}), HumanMessage(content='很高兴认识你',additional_kwargs={}, response_metadata={})]
 ```
 
-**类型4：Message列表类型**
+- <font color="red">**类型4：Message列表类型**</font>
 
 ```python
 from langchain_core.messages import SystemMessage,HumanMessage
@@ -4243,7 +4243,8 @@ messages=[SystemMessage(content='我是一个贴心的智能助手', additional_
 <class 'langchain_core.prompt_values.ChatPromptValue'>
 ```
 
-注意：在XxxMessage中不能有占位符。即：
+- 注意：<font color="red">**在XxxMessage中不能有占位符**</font>。即：
+
 
 ```python
 from langchain_core.messages import SystemMessage,HumanMessage
@@ -4264,22 +4265,26 @@ messages=[SystemMessage(content='我是一个贴心的智能助手', additional_
 <class 'langchain_core.prompt_values.ChatPromptValue'>
 ```
 
-**类型5：MessagePromptTemplate列表类型**
+- <font color="red">**类型5：MessagePromptTemplate列表类型**</font>
 
-LangChain提供不同类型的MessagePromptTemplate。最常用的是SystemMessagePromptTemplate 、HumanMessagePromptTemplate 和AIMessagePromptTemplate ，分别创建系统消息、人工消息和AI消息。
+  - LangChain提供不同类型的MessagePromptTemplate。最常用的是SystemMessagePromptTemplate 、HumanMessagePromptTemplate 和AIMessagePromptTemplate ，分别创建系统消息、人工消息和AI消息。
 
-**基本概念：**
 
-HumanMessagePromptTemplate，专用于生成用户消息（HumanMessage）的模板类
+  - **基本概念：**HumanMessagePromptTemplate，专用于生成用户消息（HumanMessage）的模板类
 
-- 模板化：支持使用变量占位符，可以在运行时填充具体值
-- 格式化：能够将模板与输入变量结合生成最终的聊天消息
-- 输出类型：生成 HumanMessage  对象（content  + role="human" ）
-- 设计目的 ：简化用户输入消息的模板化构造，避免重复定义角色
+    - 模板化：支持使用变量占位符，可以在运行时填充具体值
 
-**SystemMessagePromptTemplate、AIMessagePromptTemplate**：类似于上面，不再赘述
+    - 格式化：能够将模板与输入变量结合生成最终的聊天消息
 
-举例1：
+    - 输出类型：生成 HumanMessage  对象（content  + role="human" ）
+
+    - 设计目的 ：简化用户输入消息的模板化构造，避免重复定义角色
+
+
+  - **SystemMessagePromptTemplate、AIMessagePromptTemplate**：类似于上面，不再赘述
+
+  - 举例1：
+
 
 ```python
 # 导入聊天消息类模板
@@ -4305,11 +4310,13 @@ print(formatted_messages)
 messages=[SystemMessage(content='你是一个物理学家', additional_kwargs={},response_metadata={}), HumanMessage(content='给我解释相对论，用浅显易懂的语言', additional_kwargs={}, response_metadata={})]
 ```
 
-**类型6：BaseChatPromptTemplate列表类型**
+- <font color="red">**类型6：BaseChatPromptTemplate列表类型**</font>
 
-使用 BaseChatPromptTemplate，可以理解为ChatPromptTemplate里嵌套了ChatPromptTemplate。
+  - 使用 BaseChatPromptTemplate，可以理解为ChatPromptTemplate里嵌套了ChatPromptTemplate。
 
-举例1：带参数
+
+  - 举例1：带参数
+
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate
@@ -4333,7 +4340,8 @@ prompt_template.invoke({"name":"小智","question":"你为什么这么帅？"})
 ChatPromptValue(messages=[SystemMessage(content='我是一个人工智能助手，我的名字叫小智', additional_kwargs={}, response_metadata={}),HumanMessage(content='很高兴认识你,我的问题是你为什么这么帅？',additional_kwargs={}, response_metadata={})])
 ```
 
-举例2：不带参数
+- 举例2：不带参数
+
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate
@@ -4395,14 +4403,18 @@ ChatPromptValue(messages=[SystemMessage(content='你是一个AI工程师。',add
 
 #### 2.4.1 部分变量预填充：partial()
 
-预填充某些固定不变的变量，创建模板的变体。
+- 预填充某些固定不变的变量，创建模板的变体。
 
-**使用场景：**
 
-- 某些变量在所有调用中都相同
-- 需要为不同用户/场景创建定制模板
+- **使用场景：**
 
-举例1：
+  - 某些变量在所有调用中都相同
+
+  - 需要为不同用户/场景创建定制模板
+
+
+- 举例1：
+
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate
@@ -4428,7 +4440,8 @@ print(messages)
 messages=[SystemMessage(content='你是客服专员，目标用户是普通用户',additional_kwargs={}, response_metadata={}), HumanMessage(content='解释退款政策', additional_kwargs={}, response_metadata={})]
 ```
 
-举例2：
+- 举例2：
+
 
 ```python
 # 场景：为不同部门创建专用模板
@@ -4456,15 +4469,19 @@ sales_template.invoke({"task":"为什么每年年底汽车会促销"})
 ChatPromptValue(messages=[SystemMessage(content='你是销售部门的销售顾问',additional_kwargs={}, response_metadata={}), HumanMessage(content='为什么每年年底汽车会促销', additional_kwargs={}, response_metadata={})])
 ```
 
+
+
 #### 2.4.2 消息占位符
 
-当你不确定消息提示模板使用什么角色，或者希望在格式化过程中插入消息列表时，该怎么办？ 这就需要使用消息占位符，负责在特定位置添加消息列表。
+- 当你不确定消息提示模板使用什么角色，或者希望在格式化过程中插入消息列表时，该怎么办？ 这就需要使用消息占位符，负责在特定位置添加消息列表。
 
-**使用场景：**多轮对话系统存储历史消息以及Agent的中间步骤处理此功能非常有用。
 
-**方式1：JSON形式**
+- **使用场景：**多轮对话系统存储历史消息以及Agent的中间步骤处理此功能非常有用。
 
-举例1：
+- **方式1：JSON形式**
+
+- 举例1：
+
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate
@@ -4496,7 +4513,7 @@ print(prompt_value)
 messages=[SystemMessage(content='你是一个有用的AI助手', additional_kwargs={}, response_metadata={}), HumanMessage(content='你好!',additional_kwargs={}, response_metadata={}), AIMessage(content='今天我能帮你做什么？', additional_kwargs={}, response_metadata={}, tool_calls=[],invalid_tool_calls=[]), HumanMessage(content='你能给我做一个冰激凌吗？',additional_kwargs={}, response_metadata={}), AIMessage(content='抱歉，我没有这样的能力', additional_kwargs={}, response_metadata={}, tool_calls=[],invalid_tool_calls=[])]
 ```
 
-**方式2：MessagesPlaceholder实例**
+- **方式2：MessagesPlaceholder实例**
 
 举例1：
 
@@ -4547,13 +4564,18 @@ prompt_template.invoke(
 ChatPromptValue(messages=[SystemMessage(content='你是一个非常友好的AI助手',additional_kwargs={}, response_metadata={}), HumanMessage(content='5 + 2= ?', additional_kwargs={}, response_metadata={}), AIMessage(content='5+ 2 = 7', additional_kwargs={}, response_metadata={}, tool_calls=[],invalid_tool_calls=[]), HumanMessage(content='结果再乘以4呢？',additional_kwargs={}, response_metadata={})])
 ```
 
+
+
 #### 2.4.3 可复用模板库
 
-在实际项目中，建议创建模板库。
+- 在实际项目中，建议创建模板库。
 
-举例1：
 
-templates.py文件声明如下
+- 举例1：
+
+
+- templates.py文件声明如下
+
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate
@@ -4582,7 +4604,8 @@ class PromptLibrary:
     ])
 ```
 
-其它文件中使用：
+- 其它文件中使用：
+
 
 ```python
 from templates import PromptLibrary
@@ -4611,6 +4634,8 @@ FRIENDLY_ASSISTANT = ChatPromptTemplate.from_messages([
     ("user", "{input}")
 ])
 ```
+
+
 
 #### 2.4.4 模板组合
 
@@ -4647,20 +4672,6 @@ template2 = ChatPromptTemplate.from_messages([
 # 组合（LangChain 1.0 支持）
 combined = template1 + template2
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -4990,6 +5001,8 @@ person = structured_llm.invoke("张三是一名30岁的工程师")
 
 ### 2.1 Pydantic
 
+#### 2.1.1 基本使用
+
 - Pydantic 是 Python 中最流行的数据验证库，LangChain 将其作为结构化输出的首选模式。所有结构化输出的数据模型都必须继承自 BaseModel
 - <font color="red">**通过在运行时强制执行类型提示，确保数据的正确性和一致性**</font>，生产首选
 
@@ -5161,9 +5174,635 @@ print(f"关键词列表：{response.keywords}")
 
 
 
+#### 2.1.2 高级特性
+
+- <font color="red">**情况1：可选字段**</font>
+
+  - **问题：LLM 未填充某些字段怎么办？**
+
+  - 使用Optional 指定字段为可选的。
 
 
+  - 举例：
 
+  ~~~python
+  from pydantic import BaseModel, Field
+  from typing import Optional
+  
+  class Person(BaseModel):
+      """人物信息"""
+      name: str = Field(description="姓名")
+      age: int = Field(description="年龄")
+      occupation: str = Field(description="职业")
+  
+  structured_llm = model_with_closeai.with_structured_output(Person)
+  
+  structured_llm.invoke("张三是一名医生")
+  ~~~
+
+  ~~~python
+  Person(name='张三', age=0, occupation='医生')
+  ~~~
+
+  - 作为对比：
+
+  ~~~python
+  from typing import Optional
+  from pydantic import BaseModel, Field
+  
+  class Person(BaseModel):
+      """人物信息"""
+      name: str = Field(description="姓名")
+      age: Optional[int] = Field(description="年龄")
+      occupation: str = Field(description="职业")
+  
+  structured_llm = model_with_closeai.with_structured_output(Person)
+  
+  structured_llm.invoke("张三是一名医生")
+  ~~~
+
+  ~~~python
+  Person(name='张三', age=None, occupation='医生')
+  ~~~
+
+- <font color="red">**情况2：默认值**</font>
+
+  - LLM 未提供的信息会使用默认值。格式如下：
+
+
+  - Field(default="默认值", description="描述")
+
+  - >注意：不同模型提供商对default字段的支持是不同的。
+
+  - 举例1：使用CloseAI平台的gpt模型：
+
+  ~~~python
+  from typing import Optional
+  from pydantic import BaseModel, Field
+  
+  class Person(BaseModel):
+      """人物信息"""
+      name: str = Field(description="姓名")
+      age: int = Field(1,description="年龄")
+      occupation: str = Field(description="职业")
+  
+  structured_llm = model_with_closeai.with_structured_output(Person)
+  
+  structured_llm.invoke("张三是一名医生")
+  ~~~
+
+  ~~~python
+  Person(name='张三', age=0, occupation='医生')
+  ~~~
+
+  
+
+作为对比：
+
+```python
+from typing import Optional
+from pydantic import BaseModel, Field
+
+class Person(BaseModel):
+    """人物信息"""
+    name: str = Field(description="姓名")
+    age: int = Field(1,description="年龄")
+    occupation: str = Field(description="职业")
+
+structured_llm = model_with_openrouter.with_structured_output(Person)
+
+structured_llm.invoke("张三是一名医生")
+```
+
+```python
+Person(name='张三', age=1, occupation='医生')
+```
+
+举例2：
+
+```python
+class Config(BaseModel):
+    timeout: Optional[int] = Field(30,description="超时时间(单位秒)")
+    retry: bool = Field(False,description="是否支持重试")
+    max_attempts: int = Field(6,description="最大重试次数")
+
+# 测试
+structured_llm = model_with_closeai.with_structured_output(Config)
+structured_llm.invoke("配置要求：支持重试,最多重试5次")
+```
+
+```python
+Config(timeout=None, retry=True, max_attempts=5)
+```
+
+作为对比：
+
+```python
+class Config(BaseModel):
+    timeout: Optional[int] = Field(30,description="超时时间(单位秒)")
+    retry: bool = Field(False,description="是否支持重试")
+    max_attempts: int = Field(6,description="最大重试次数")
+
+# 测试
+structured_llm = model_with_openrouter.with_structured_output(Config)
+structured_llm.invoke("配置要求：支持重试,最多重试5次")
+```
+
+```python
+Config(timeout=None, retry=True, max_attempts=5)
+```
+
+举例3：
+
+```python
+from typing import Optional
+from pydantic import BaseModel, Field
+
+class Product(BaseModel):
+    """产品信息"""
+    name: str = Field(description="产品名称")
+    price: float = Field(description="价格")
+    description: Optional[str] = Field(description="产品描述")
+    stock: int = Field(default=100, description="库存")
+
+# 测试
+structured_llm = model_with_openrouter.with_structured_output(Product)
+print("\n场景1：完整信息")
+result1 = structured_llm.invoke("iPhone 15 售价 5999 元，最新款智能手机，库存 50台")
+print(result1)
+
+print("\n场景2：缺少描述和库存")
+result2 = structured_llm.invoke("MacBook Pro 售价 12999 元")
+print(result2)
+```
+
+```python
+场景1：完整信息
+name='iPhone 15' price=5999.0 description='最新款智能手机' stock=50
+
+场景2：缺少描述和库存
+name='MacBook Pro' price=12999.0 description=None stock=100
+```
+
+##### 情况3：枚举类型
+
+问题：如何限制字段的可选值？
+
+回答：使用枚举。
+
+举例1：
+
+```python
+from enum import Enum
+
+class Priority(str, Enum):
+    LOW = "低"
+    MEDIUM = "中"
+    HIGH = "高"
+
+class Task(BaseModel):
+    title: str
+    priority: Priority  # 只能是 LOW/MEDIUM/HIGH
+```
+
+举例2：
+
+```python
+from enum import Enum
+
+class Status(str, Enum):
+    ACTIVE = "激活"
+    INACTIVE = "未激活"
+
+class User(BaseModel):
+    status: Status  # 只能是 ACTIVE 或 INACTIVE
+```
+
+举例3：
+
+```python
+from enum import Enum
+from typing import Optional
+from pydantic import BaseModel, Field
+
+# 定义你的优先级枚举类
+class Priority(str, Enum):
+    LOW = "低"
+    MEDIUM = "中"
+    HIGH = "高"
+
+class CustomerInfo(BaseModel):
+    """客户信息"""
+    name: str = Field(description="客户姓名")
+    phone: str = Field(description="电话号码")
+    email: Optional[str] = Field(description="邮箱")
+    issue: str = Field(description="问题描述")
+    urgency: Priority = Field(description="紧急程度")
+
+# 测试
+structured_llm = model_with_openrouter.with_structured_output(CustomerInfo)
+
+conversation = """
+客服: 您好，请问有什么可以帮助您？
+客户: 我是王小明，电话 138-1234-5678，我的订单一直没发货，很着急！
+客服: 好的，我帮您查一下
+"""
+
+result = structured_llm.invoke(f"从以下客服对话中提取客户信息：\n{conversation}")
+
+print(result)
+
+print("\n提取结果：")
+print(f"  客户: {result.name}")
+print(f"  电话: {result.phone}")
+print(f"  邮箱: {result.email or '未提供'}")
+print(f"  问题: {result.issue}")
+print(f"  紧急程度: {result.urgency.value}")
+```
+
+```text
+name='王小明' phone='138-1234-5678' email=None issue='订单一直没发货，很着急'urgency=<Priority.HIGH: '高'>
+
+提取结果：
+ 客户: 王小明
+ 电话: 138-1234-5678
+ 邮箱: 未提供
+ 问题: 订单一直没发货，很着急
+ 紧急程度: 高
+```
+
+如果嫌单独定义一个 Enum 类太麻烦，也可以直接导入 typing 中的 Literal ，直接在字段里把允许的值写死。
+
+```python
+from typing import Optional, Literal
+from pydantic import BaseModel, Field
+
+class CustomerInfo(BaseModel):
+    """客户信息"""
+    name: str = Field(description="客户姓名")
+    phone: str = Field(description="电话号码")
+    email: Optional[str] = Field("未提供", description="邮箱")
+    issue: str = Field(description="问题描述")
+    # 使用 Literal 直接限定字面量值
+    urgency: Literal["低","中","高"] = Field(description="紧急程度")
+
+# 测试
+structured_llm = model_with_openrouter.with_structured_output(CustomerInfo)
+
+conversation = """
+客服: 您好，请问有什么可以帮助您？
+客户: 我是王小明，电话 138-1234-5678，我的订单一直没发货，很着急！
+客服: 好的，我帮您查一下
+"""
+
+result = structured_llm.invoke(f"从以下客服对话中提取客户信息：\n{conversation}")
+
+print(result)
+
+print("\n提取结果：")
+print(f"  客户: {result.name}")
+print(f"  电话: {result.phone}")
+print(f"  邮箱: {result.email}")
+print(f"  问题: {result.issue}")
+print(f"  紧急程度: {result.urgency}")
+```
+
+```text
+name='王小明' phone='138-1234-5678' email='未提供' issue='订单一直没发货，很着急' urgency='高'
+
+提取结果：
+ 客户: 王小明
+ 电话: 138-1234-5678
+ 邮箱: 未提供
+ 问题: 订单一直没发货，很着急
+ 紧急程度: 高
+```
+
+应用场景：
+
+- 自动填充 CRM 系统
+
+- 工单自动分类
+
+- 客服辅助
+
+##### 情况4：列表提取
+
+举例1：
+
+```python
+from typing import List
+
+class Person(BaseModel):
+    """人物信息"""
+    name: str
+    age: int
+
+class PersonList(BaseModel):
+    """人物列表信息"""
+    people: List[Person]  # 多个 Person 对象
+
+structured_llm = model.with_structured_output(PersonList)
+result = structured_llm.invoke("张三 30岁，李四 25岁")
+
+print(result)
+```
+
+```text
+people=[Person(name='张三', age=30), Person(name='李四', age=25)]
+```
+
+举例2：产品评论分析
+
+```python
+class Review(BaseModel):
+    """产品评论"""
+    product: str
+    rating: int = Field(description="评分 1-5")
+    pros: List[str] = Field(description="优点列表")
+    cons: List[str] = Field(description="缺点列表")
+
+structured_llm = model.with_structured_output(Review)
+
+review = structured_llm.invoke("""
+iPhone 17 很棒！摄像头强大，手感好。但是价格贵，没有充电器。4分。
+""")
+
+print(review)
+```
+
+```text
+product='iPhone 17' rating=4 pros=['摄像头强大', '手感好'] cons=['价格贵','没有充电器']
+```
+
+应用场景：
+
+- 批量处理用户评论
+
+- 自动生成分析报告
+
+- 发现产品改进点
+
+举例3：文档信息提取
+
+```python
+class Invoice(BaseModel):
+    """发票信息"""
+    invoice_number: str = Field(description="发票号")
+    date: str = Field(description="日期")
+    total_amount: float = Field(description="总金额")
+    items: List[str] = Field(description="商品")
+
+# 测试
+structured_llm = model.with_structured_output(Invoice)
+
+invoice_text = """
+发票号: INV-2024-001
+日期: 2024-01-15
+总金额: 1299.00
+商品: MacBook Pro, AppleCare+
+"""
+
+invoice = structured_llm.invoke(f"提取发票信息：{invoice_text}")
+print(invoice)
+```
+
+```text
+invoice_number='INV-2024-001' date='2024-01-15' total_amount=1299.0items=['MacBook Pro', 'AppleCare+']
+```
+
+应用场景：
+
+- 自动化财务处理
+
+- OCR 后结构化
+
+- 数据录入
+
+##### 情况5：嵌套结构
+
+举例1：
+
+```python
+from pydantic import BaseModel
+
+class Address(BaseModel):
+    """地点描述"""
+    city: str
+    district: str
+
+class Company(BaseModel):
+    """公司信息"""
+    name: str
+    address: Address  # 嵌套模型
+
+structured_llm = model.with_structured_output(Company)
+
+result = structured_llm.invoke("阿里巴巴在杭州滨江区")
+
+print(result)
+```
+
+```text
+name='阿里巴巴' address=Address(city='杭州', district='滨江区')
+```
+
+举例2：
+
+```python
+from pydantic import BaseModel, Field
+from typing import List
+
+# 1. 定义嵌套的 Pydantic 模型
+class Actor(BaseModel):
+    """演员信息"""
+    name: str = Field(description="演员姓名")
+    role: str = Field(description="饰演的角色")
+
+class Movie(BaseModel):
+    """电影信息"""
+    title: str = Field(description="电影标题")
+    year: int = Field(description="上映年份")
+    director: str = Field(description="导演")
+    cast: List[Actor] = Field(description="演员列表")  # 定义列表字段
+    rating: float = Field(description="评分")
+
+# 2. 初始化模型并绑定输出结构
+structured_model = model.with_structured_output(Movie)
+
+# 3. 调用模型，直接获取 Movie 实例
+response = structured_model.invoke("请介绍电影《盗梦空间》")
+
+# 4. 访问嵌套数据
+print(f"电影名: {response.title}")
+print(f"上映年份: {response.year}")
+print(f"导演: {response.director}")
+print(f"演员列表: {response.cast}")
+print(f"评分: {response.rating}")
+```
+
+以上代码输出结果如下：
+
+```python
+电影名: 盗梦空间
+上映年份: 2010
+导演: 克里斯托弗·诺兰
+演员列表: [Actor(name='莱昂纳多·迪卡普里奥', role='柯布'), Actor(name='约瑟夫·高登-莱维特', role='亚瑟'), Actor(name='艾伦·佩吉', role='阿里阿德涅'),Actor(name='汤姆·哈迪', role='艾姆斯'), Actor(name='渡边谦', role='斋藤'),Actor(name='玛丽昂·歌迪亚', role='梅尔')]
+评分: 8.8
+```
+
+说明：LLM 能力有限，复杂嵌套结构可能会出错。所以建议：
+
+- 嵌套层级 ≤ 3 层
+
+```python
+class Bad(BaseModel):
+    user: User
+        company: Company
+            address: Address
+                country: Country  # 4 层嵌套，容易出错
+```
+
+- 使用清晰的 description
+
+- 必要时拆分成多个调用
+
+举例3：
+
+```python
+from pydantic import BaseModel
+from typing import List
+
+class Aspect(BaseModel):
+    """评论维度"""
+    name: str = Field(description="维度名称，如：质量、价格、服务")
+    score: int = Field(description="评分，1-5")
+    comment: str = Field(description="具体评价")
+
+class ProductReview(BaseModel):
+    """产品评论分析"""
+    overall_sentiment: str = Field(description="整体情感：positive/negative/neutral")
+    overall_score: int = Field(description="综合评分，1-5")
+    aspects: List[Aspect] = Field(description="各维度评价")
+    summary: str = Field(description="一句话总结")
+
+# 创建结构化模型
+structured_model = model.with_structured_output(ProductReview)
+# 测试
+review_text = """
+这款笔记本电脑性能非常强大，运行大型软件毫无压力。
+屏幕色彩鲜艳，看视频很舒服。
+不过价格有点贵，而且风扇噪音较大。
+客服态度很好，物流也快。
+总体来说还是值得购买的。
+"""
+
+result = structured_model.invoke(
+    f"分析以下产品评论：\n{review_text}"
+)
+
+print(f"整体情感: {result.overall_sentiment}")
+print(f"综合评分: {result.overall_score}/5")
+print(f"\n各维度评价:")
+for aspect in result.aspects:
+    print(f"  - {aspect.name}: {aspect.score}/5 - {aspect.comment}")
+print(f"\n总结: {result.summary}")
+```
+
+```text
+整体情感: positive
+综合评分: 4/5
+
+各维度评价:
+  - 性能: 5/5 - 性能非常强大，运行大型软件毫无压力。
+  - 屏幕: 5/5 - 屏幕色彩鲜艳，看视频很舒服。
+  - 价格: 2/5 - 价格有点贵，性价比略受影响。
+  - 噪音: 2/5 - 风扇噪音较大，影响使用体验。
+  - 服务: 5/5 - 客服态度很好，物流也快。
+
+总结: 整体表现优秀，性能和屏幕突出，服务也好，但价格偏高且风扇噪音较大。
+```
+
+##### 情况6：限制条件
+
+举例1：
+
+```python
+from pydantic import ValidationError
+
+class User(BaseModel):
+    name: str = Field(min_length=2, max_length=20)
+    age: int = Field(ge=0, le=150)
+    email: str
+
+print("\n有效数据:")
+try:
+    user = User(name="张三", age=30, email="zhang@example.com")
+    print(f"[OK] {user.name}, {user.age}, {user.email}")
+except ValidationError as e:
+    print(f"[FAIL] {e}")
+
+print("\n无效数据（年龄超出范围）:")
+try:
+    user = User(name="李四", age=200, email="li@example.com")
+    print(f"[OK] {user}")
+except ValidationError as e:
+    print(f"[FAIL] 验证失败（符合预期）: {e.errors()[0]['msg']}")
+```
+
+```text
+有效数据:
+[OK] 张三, 30, zhang@example.com
+
+无效数据（年龄超出范围）:
+[FAIL] 验证失败（符合预期）: Input should be less than or equal to 150
+```
+
+举例2：
+
+使用CloseAI平台模型
+
+```python
+class Product(BaseModel):
+    """产品信息（严格验证）"""
+    name: str = Field(description="产品名称（字符串类型）", min_length=2)
+    price: float = Field(description="价格，数字类型", gt=0)
+    stock: int = Field(description="库存，整数类型", ge=0)
+
+# 测试
+structured_llm = model_with_closeai.with_structured_output(Product)
+
+# response = structured_llm.invoke("华为mate 80 promax 价格是7999，当前库存100")
+response = structured_llm.invoke("华为mate 80 promax 价格是-7999，当前库存-100")
+print(response)
+```
+
+```text
+name='华为mate 80 promax' price=7999.0 stock=100
+```
+
+使用OpenRouter平台模型
+
+```python
+class Product(BaseModel):
+    """产品信息（严格验证）"""
+    name: str = Field(description="产品名称（字符串类型）", min_length=2)
+    price: float = Field(description="价格，数字类型", gt=0)
+    stock: int = Field(description="库存，整数类型", ge=0)
+
+# 测试
+structured_llm = model_with_openrouter.with_structured_output(Product)
+
+# response = structured_llm.invoke("华为mate 80 promax 价格是7999，当前库存100")
+response = structured_llm.invoke("华为mate 80 promax 价格是-7999，当前库存-100")
+print(response)
+```
+
+```text
+name='华为mate 80 promax' price=1.0 stock=0
+```
+
+#### 
 
 
 
