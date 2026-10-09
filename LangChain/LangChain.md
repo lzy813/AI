@@ -4791,67 +4791,666 @@ combined = template1 + template2
 
 ### 1.4 从Message流转看工具调用
 
+- <font color="red">**不使用@tool修饰**</font>
+  - 先添加用户消息
+  - 用户消息去用大模型执行，得到第二条AI返回消息
+  - 然后根据返回里的tool_call找到对应的工具，拼接第三条工具消息
+  - 用这三条消息去调用大模型，手动模拟工具调用
+
 ```python
+import os
+
+import dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage, ToolMessage
+
+# 从环境变量中获取配置信息
+dotenv.load_dotenv(override=True)
+
+# 初始化模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+def get_weather(city: str):
+    """获取天气的工具"""
+    return f"{city}天气晴朗"
+
+# 将模型和工具绑定
+model_with_tools = model.bind_tools([get_weather])
+
+# 第一条消息
+messages = [
+    HumanMessage("今天北京天气如何")
+]
+
+# 模型生成调用工具请求
+response = model_with_tools.invoke(messages)
+
+# 第二条消息，添加AIMessage
+messages.append(response)
+
+# 打印响应信息里的tool_calls
+# [{'name': 'get_weather', 'args': {'city': '北京'}, 'id': 'call_637f7709978b4a64babcead8', 'type': 'tool_call'}]
+tool_calls = response.tool_calls
+print(tool_calls)
+
+# 根据name找到对应的tool_call，手动执行
+for tool_call in tool_calls:
+    if tool_call["name"] == "get_weather":
+        # 拼接出ToolMessage实例
+        tool_response = ToolMessage(
+            content=get_weather(**tool_call["args"]),
+            tool_call_id=tool_call["id"],
+            name=tool_call["name"]
+        )
+        # 第三条消息
+        messages.append(tool_response)
+
+print("=====================> messages <=====================")
+for msg in messages:
+    msg.pretty_print()
+
+print("=====================> messages <=====================")
+# 三条消息列表去执行，去用大模型执行，这样就是一次完整的工具调用
+final_response = model_with_tools.invoke(messages)
+print(f"final_response: \n{final_response}")
+```
+
+~~~python
+[{'name': 'get_weather', 'args': {'city': '北京'}, 'id': 'call_637f7709978b4a64babcead8', 'type': 'tool_call'}]
+=====================> messages <=====================
+================================ Human Message =================================
+
+今天北京天气如何
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (call_637f7709978b4a64babcead8)
+ Call ID: call_637f7709978b4a64babcead8
+  Args:
+    city: 北京
+================================= Tool Message =================================
+Name: get_weather
+
+北京天气晴朗
+=====================> messages <=====================
+final_response: 
+content='今天北京的天气是**晴朗** ☀️ 的，适合外出活动，不过具体气温和风力情况我这边暂时获取不到，建议你出门前再看一眼实时预报，做好防晒或保暖准备～' additional_kwargs={'refusal': None} response_metadata={'token_usage': {'completion_tokens': 58, 'prompt_tokens': 344, 'total_tokens': 402, 'completion_tokens_details': {'accepted_prediction_tokens': None, 'audio_tokens': None, 'reasoning_tokens': 12, 'rejected_prediction_tokens': None}, 'prompt_tokens_details': None}, 'model_provider': 'openai', 'model_name': 'deepseek-v4.1-flash', 'system_fingerprint': None, 'id': 'chatcmpl-37b1151d', 'finish_reason': 'stop', 'logprobs': None} id='lc_run--01a11fdf-6095-7b82-8f11-bae1f7f5ef7f-0' tool_calls=[] invalid_tool_calls=[] usage_metadata={'input_tokens': 344, 'output_tokens': 58, 'total_tokens': 402, 'input_token_details': {}, 'output_token_details': {'reasoning': 12}}
+~~~
+
+- <font color="red">**使用@tool修饰**</font>
+  - 被 @tool 修饰的函数可以调用 invoke 接收模型返回的入参信息执行函数，并返回ToolMessage 实例，我们不再需要手动拼接 ToolMessage。
+
+~~~python
+import os
+
+import dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
-from langchain.messages import HumanMessage, ToolMessage
 
-from langChainDemo import model
+# 从环境变量中获取配置信息
+dotenv.load_dotenv(override=True)
 
+# 初始化模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
 
 @tool
 def get_weather(city: str):
     """获取天气的工具"""
-    return f"{city}天气晴朗~"
+    return f"{city}天气晴朗"
 
-# 绑定工具
+# 将模型和工具绑定
 model_with_tools = model.bind_tools([get_weather])
 
-# 消息列表
-messages = [HumanMessage("今天北京天气如何")]
+messages = [
+    HumanMessage("今天北京天气如何")
+]
 
-# 第一次调用：模型生成调用工具请求
+# 模型生成调用工具请求
 response = model_with_tools.invoke(messages)
-messages.append(response)  # 添加AIMessage
 
-# 处理工具调用
-for tool_call in response.tool_calls:
+# 添加AIMessage
+messages.append(response)
+
+tool_calls = response.tool_calls
+
+for tool_call in tool_calls:
     if tool_call["name"] == "get_weather":
-        # 主动调用工具，返回ToolMessage
+        # 返回的是ToolMessage类型消息
         tool_response = get_weather.invoke(tool_call)
+        print(type(tool_response))
         messages.append(tool_response)
 
-# 打印消息列表（3条消息）
+print("=====================> messages <=====================")
 for msg in messages:
     msg.pretty_print()
-
-# 第二次调用：模型整合结果
+print("=====================> messages <=====================")
 final_response = model_with_tools.invoke(messages)
-print(f"最终结果: {final_response.content}")
+print(f"final_response: \n{final_response}")
+~~~
+
+~~~python
+<class 'langchain_core.messages.tool.ToolMessage'>
+=====================> messages <=====================
+================================ Human Message =================================
+
+今天北京天气如何
+================================== Ai Message ==================================
+
+我来帮您查询北京今天的天气。
+Tool Calls:
+  get_weather (call_e3f80c16cddf4d5fa5b0ddf0)
+ Call ID: call_e3f80c16cddf4d5fa5b0ddf0
+  Args:
+    city: 北京
+================================= Tool Message =================================
+Name: get_weather
+
+北京天气晴朗
+=====================> messages <=====================
+final_response: 
+content='今天北京天气晴朗 ☀️\n\n天气不错，适合外出活动。如果您需要更详细的信息（如温度、风力、空气质量等），可以告诉我，我再帮您进一步查询。' additional_kwargs={'refusal': None} response_metadata={'token_usage': {'completion_tokens': 64, 'prompt_tokens': 352, 'total_tokens': 416, 'completion_tokens_details': {'accepted_prediction_tokens': None, 'audio_tokens': None, 'reasoning_tokens': 24, 'rejected_prediction_tokens': None}, 'prompt_tokens_details': None}, 'model_provider': 'openai', 'model_name': 'deepseek-v4.1-flash', 'system_fingerprint': None, 'id': 'chatcmpl-9b4c9af5', 'finish_reason': 'stop', 'logprobs': None} id='lc_run--01a11fea-1c18-7000-b784-2c6e3a665a67-0' tool_calls=[] invalid_tool_calls=[] usage_metadata={'input_tokens': 352, 'output_tokens': 64, 'total_tokens': 416, 'input_token_details': {}, 'output_token_details': {'reasoning': 24}}
+~~~
+
+- 对应图示（以参考1为例）：
+
+![工具调用完整流程图](图片/tool-calling-complete-flow.png)
+
+- **工具调用流程总结：**
+  - 所以如果真正要大模型根据工具调用结果进行回复，完整的调用流程包括如下四个步骤：
+    - 步骤1：模型绑定工具：通过model.bind_tools([...])绑定一个或者多个工具。
+    - 步骤2：模型生成工具调用请求：用户输入问题，调用模型（比如invoke()）。如果需要调用工具，模型返回包含工具调用信息（如工具名称和参数）的AIMessage。
+    - 步骤3：开发者手动执行工具：用户从响应中提取工具调用信息并手动调用对应的工具（比如工具.invoke()）。
+    - 步骤4：将工具执行结果ToolMessage传递给模型生成最终结果：将之前用户提问内容和手动执行工具结果ToolMessage返回模型，模型最终生成回复。
+  - 特别注意：大模型调用工具是单次推理，直接响应，需要开发者手动执行工具并管理循环，适合简单、确定的任务。
+
+
+
+## 2、工具的定义方式
+
+### 2.1 不使用@tool
+
+#### 2.1.1 绑定工具并发送请求
+
+- 代码
+
+~~~python
+import os
+
+import dotenv
+from langchain.chat_models import init_chat_model
+from rich import print as rprint
+
+# 从环境变量中获取配置信息
+dotenv.load_dotenv(override=True)
+
+# 初始化模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+# 定义工具
+def get_weather(city: str):
+    return f"{city}天气晴朗"
+
+# 将模型和工具绑定
+model_with_tools = model.bind_tools([get_weather])
+
+response = model_with_tools.invoke(
+    "今天北京天气如何"
+)
+
+rprint(response)
+# print(response.tool_calls)
+~~~
+
+- 返回响应
+
+~~~bash
+AIMessage(
+    content='\n\n',
+    additional_kwargs={'refusal': None},
+    response_metadata={
+        'token_usage': {
+            'completion_tokens': 57,
+            'prompt_tokens': 282,
+            'total_tokens': 339,
+            'completion_tokens_details': {
+                'accepted_prediction_tokens': None,
+                'audio_tokens': None,
+                'reasoning_tokens': 17,
+                'rejected_prediction_tokens': None
+            },
+            'prompt_tokens_details': None
+        },
+        'model_provider': 'openai',
+        'model_name': 'deepseek-v4.1-flash',
+        'system_fingerprint': None,
+        'id': 'chatcmpl-4a7f2d34',
+        'finish_reason': 'tool_calls',
+        'logprobs': None
+    },
+    id='lc_run--01a11fee-ed72-7580-94f3-8a742177c693-0',
+    tool_calls=[
+        {
+            'name': 'get_weather',
+            'args': {'city': '北京'},
+            'id': 'call_49c00f8f979f494c8d38a369',
+            'type': 'tool_call'
+        }
+    ],
+    invalid_tool_calls=[],
+    usage_metadata={
+        'input_tokens': 282,
+        'output_tokens': 57,
+        'total_tokens': 339,
+        'input_token_details': {},
+        'output_token_details': {'reasoning': 17}
+    }
+)
+~~~
+
+
+
+#### 2.1.2 工具描述的各部分详解
+
+##### 2.1.2.1 convert_to_openai_tool
+
+- <font color="red">**执行 model.bind_tools([get_weather])，底层最终会调用 convert_to_openai_tool 生成工具描述**</font>。所以我们可以直接调用后者查看解析后的工具描述。
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+
+from rich import print as rprint
+
+def get_weather(city: str):
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出如下
+
+```json
+{
+    'type': 'function',
+    'function': {
+        'name': 'get_weather',
+        'description': '',
+        'parameters': {
+            'properties': {'city': {'type': 'string'}},
+            'required': ['city'],
+            'type': 'object'
+        }
+    }
+}
+```
+
+- **结果字段说明：**
+  - type：定义当前数据节点必须是什么数据类型。常见类型有 string, number, integer, boolean,object, array, null。object即是json对象。
+  - properties：用于定义JSON 对象（Object）中可以包含哪些属性（键），以及每个属性对应的值类型和说明。
+  - required：当 type为 "object"时使用，是一个数组，列出了对象中<font color="red">**必须存在**</font>的属性名。
+
+- **问题：为什么不使用@tool装饰器修饰的函数，也可以理解为工具呢？**
+
+- 查看 convert_to_openai_tool 底层源码：
+
+```python
+elif isinstance(function, langchain_core.tools.base.BaseTool):
+    oai_function = cast("dict", _format_tool_to_openai_function(function))
+elif callable(function):
+    oai_function = cast(
+        "dict", _convert_python_function_to_openai_function(function)
+    )
+```
+
+- 相当于加了@tool修饰的函数走上面的分支，没有加@tool修饰的函数走下面的分支，后者会基于函数定义和docstring生成pydantic模式的描述，然后转换为规范的tool_schema。
+
+
+
+##### 2.1.2.2 description说明
+
+- convert_to_openai_tool 会从 docstring(文档字符串) 加载工具的描述信息，上面的案例中，docstring 为空，所以抽取的 description 为空。
+
+- docstring，文档字符串，使用三个双引号表示开始和结束。
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+def get_weather(city: str):
+    """
+    天气查询工具
+    """
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出
+
+```json
+{
+    'type': 'function',
+    'function': {
+        'name': 'get_weather',
+        'description': '天气查询工具',
+        'parameters': {
+            'properties': {'city': {'type': 'string'}},
+            'required': ['city'],
+            'type': 'object'
+        }
+    }
+}
 ```
 
 
 
+##### 2.1.2.3 参数说明
+
+- convert_to_openai_tool 会从 docstring 加载参数说明，这里的 docstring 必须遵循 Google 风格。
+  - Google 风格 docstring 说明：<https://google.github.io/styleguide/pyguide.html>
+  - Google 风格 docstring 示例：<https://www.sphinx-doc.org/en/master/usage/extensions/example_google.html>
+  - Python docstring 通用约定：<https://peps.python.org/pep-0257/>
+
+- 基础用法不必完整阅读规范，只需要按照下面的示例仿写即可。
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+def get_weather(city: str):
+    """
+    天气查询工具
+
+    Args:
+        city: 城市名称
+    """
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- <font color="red">**使用 Args:、 Returns:、 Raises: 等关键字，这种方式可读性强**</font>。Agent通过工具的这些注释来理解工具的用途和调用时机，因此清晰、准确的文档字符串是工具能被正确调用的前提。
+
+- 输出如下：
+
+```json
+{
+    'type': 'function',
+    'function': {
+        'name': 'get_weather',
+        'description': '天气查询工具',
+        'parameters': {
+            'properties': {
+                'city': {'description': '城市名称', 'type': 'string'}
+            },
+            'required': ['city'],
+            'type': 'object'
+        }
+    }
+}
+```
+
+- AI 依赖 docstring 来理解工具。
+
+```python
+# ❌ 不好：太模糊
+@tool
+def tool1(x: str) -> str:
+    """做一些事情"""
+    ...
+```
+
+```python
+# ✅ 好：清晰明确
+@tool
+def search_products(query: str) -> str:
+    """
+    在产品数据库中搜索产品
+
+    Args:
+        query: 搜索关键词，如"笔记本电脑"、"手机"
+
+    Returns:
+        产品列表的 JSON 字符串
+    """
+    ...
+```
 
 
 
+##### 2.1.2.4 参数类型说明
+
+- 参数类型来源于函数的类型注解。
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+def get_weather(city):
+    """
+    天气查询工具
+    """
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出如下
+
+```json
+{
+    'type': 'function',
+    'function': {
+        'name': 'get_weather',
+        'description': '天气查询工具',
+        'parameters': {
+            'properties': {'city': {}},
+            'required': ['city'],
+            'type': 'object'
+        }
+    }
+}
+```
+
+- 删除了参数类型注解，则工具描述中不包含参数类型说明
+
+- 注意：<font color="red">**如果docstring中包含参数说明，则对应的参数必须有类型注解，否则报错**</font>
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+def get_weather(city):
+    """
+    天气查询工具
+
+    Args:
+        city: 城市名称
+    """
+    print("天气晴朗")
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 报错如下：
+
+```text
+Traceback...
+ValueError: Arg city in docstring not found in function signature.
+```
 
 
 
+##### 2.1.2.5 参数默认值说明
+
+- 如果参数没有默认值，则会包含 在required对应的列表 中。
+
+- 反之，则参数的描述信息会包含 default 字段，并且 不会出现在required列表 中。
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+def get_weather(city: str="北京"):
+    """
+    天气查询工具
+
+    Args:
+        city: 城市名称
+    """
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出如下
+
+```json
+{
+    'type': 'function',
+    'function': {
+        'name': 'get_weather',
+        'description': '天气查询工具',
+        'parameters': {
+            'properties': {
+                'city': {
+                    'default': '北京',
+                    'description': '城市名称',
+                    'type': 'string'
+                }
+            },
+            'type': 'object'
+        }
+    }
+}
+```
+
+- 目前只有一个参数，并且有默认值，所以required字段被移除了。
+
+- 举例2：
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+def get_weather(dt: str, city: str="北京"):
+    """
+    天气查询工具
+
+    Args:
+        dt: 日期
+        city: 城市名称
+    """
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出
+
+```json
+{
+    'type': 'function',
+    'function': {
+        'name': 'get_weather',
+        'description': '天气查询工具',
+        'parameters': {
+            'properties': {
+                'dt': {'description': '日期', 'type': 'string'},
+                'city': {
+                    'default': '北京',
+                    'description': '城市名称',
+                    'type': 'string'
+                }
+            },
+            'required': ['dt'],
+            'type': 'object'
+        }
+    }
+}
+```
 
 
 
+### 2.2 使用tool
+
+- 使用 @tool 装饰器修饰，可以自动将普通 Python 函数转化为智能体可调用的工具。
+- 此方式 最直接，代码量极少，非常适合快速验证想法或创建参数简单的工具。
 
 
 
+#### 2.2.1 自定义工具描述
+
+##### 2.2.1.1 仅提供docstring信息
+
+- 在bind_tools()调用时，先将函数封装为 BaseTool 类型的对象，再传递给 convert_to_openai_tool  函数，生成工具的描述。
 
 
+~~~python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from langchain.tools import tool
 
+@tool
+def get_weather(city: str):
+    return f"{city}天气晴朗"
 
+print(convert_to_openai_tool(get_weather))
+~~~
 
+- @tool 会从 docstring 生成描述信息，同样要求遵循 Google docstring 规范。<font color="red">**如果没有 docstring则报错**</font>，如下。
 
+~~~python
+Traceback...
+ValueError: Function must have a docstring if description not provided.
+~~~
 
+- 补充 docstring
 
+~~~python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from langchain.tools import tool
+from rich import print as rprint
 
+@tool
+def get_weather(city: str):
+    """
+    天气查询工具
+    """
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+~~~
+
+- 输出如下
+
+~~~json
+{
+    'type': 'function',
+    'function': {
+        'name': 'get_weather',
+        'description': '天气查询工具',
+        'parameters': {
+            'properties': {'city': {'type': 'string'}},
+            'required': ['city'],
+            'type': 'object'
+        }
+    }
+}
+~~~
 
 
 
