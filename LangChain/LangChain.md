@@ -5454,31 +5454,1815 @@ rprint(convert_to_openai_tool(get_weather))
 
 
 
+##### 2.2.1.2 添加工具描述：description
+
+- @tool 的参数 description 可以更改工具描述，优先级高于 docstring 的函数说明
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from langchain.tools import tool
+from rich import print as rprint
+
+@tool(description="根据城市名称查询当日天气的工具")
+def get_weather(city: str):
+    """
+    天气查询工具
+    """
+    return f"{city}天气晴朗"
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出
+
+```json
+{
+ 'type': 'function',
+ 'function': {
+     'name': 'get_weather',
+     'description': '根据城市名称查询当日天气的工具',
+     'parameters': {
+         'properties': {
+             'city': {
+                 'type': 'string'
+             }
+         },
+         'required': [
+             'city'
+         ],
+         'type': 'object'
+     }
+ }
+}
+```
 
 
 
+##### 2.2.1.3 解析docstring：parse_docstring
+
+- 当我们没有向 @tool 传递 description 参数时，默认情况下， tool 会将 docstring 整体视为description，如下
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+@tool
+def get_weather(city: str, units: str = "celsius", include_forecast: bool =
+False) -> str:
+    """
+    获取当日天气，可选择是否同时查询未来五日天气预报
+
+    Args:
+        city: 城市
+        units: 气温单位，可选：celsius-摄氏度，fahrenheit-华氏度
+        include_forecast: 是否包含未来五日的天气预报
+    """
+    temp = 22 if units == "celsius" else 72
+    result = f'{city}当天气温: {temp} {"摄氏度" if units == "celsius" else "华
+氏度"}'
+    if include_forecast:
+        result += "\n未来五天都是晴天"
+    return result
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出如下
+
+```json
+{
+ 'type': 'function',
+ 'function': {
+     'name': 'get_weather',
+     'description': '获取当日天气，可选择是否同时查询未来五日天气预报
+\n\nArgs:\n    city: 城市\n    units: 气温单位，可选：celsius-摄氏度，
+fahrenheit-华氏度\n    include_forecast: 是否包含未来五日的天气预报',
+     'parameters': {
+         'properties': {
+             'city': {
+                 'type': 'string'
+             },
+             'units': {
+                 'default': 'celsius',
+                 'type': 'string'
+             },
+             'include_forecast': {
+                 'default': False,
+                 'type': 'boolean'
+             }
+         },
+         'required': [
+             'city'
+         ],
+         'type': 'object'
+     }
+ }
+}
+```
+
+- 通过将 parse_docstring 设置为True，docstring会被解析，填充到相应的字段描述中。
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from rich import print as rprint
+
+@tool(parse_docstring=True)
+def get_weather(city: str, units: str = "celsius", include_forecast: bool =
+False) -> str:
+    """
+    获取当日天气，可选择是否同时查询未来五日天气预报
+
+    Args:
+        city: 城市
+        units: 气温单位，可选：celsius-摄氏度，fahrenheit-华氏度
+        include_forecast: 是否包含未来五日的天气预报
+    """
+    temp = 22 if units == "celsius" else 72
+    result = f'{city}当天气温: {temp} {"摄氏度" if units == "celsius" else "华
+氏度"}'
+    if include_forecast:
+        result += "\n未来五天都是晴天"
+    return result
+
+rprint(convert_to_openai_tool(get_weather))
+```
+
+- 输出
+
+```json
+{
+ 'type': 'function',
+ 'function': {
+     'name': 'get_weather',
+     'description': '获取当日天气，可选择是否同时查询未来五日天气预报',
+     'parameters': {
+         'properties': {
+             'city': {
+                 'description': '城市',
+                 'type': 'string'
+             },
+             'units': {
+                 'default': 'celsius',
+                 'description': '气温单位，可选：celsius-摄氏度，
+fahrenheit-华氏度',
+                 'type': 'string'
+             },
+             'include_forecast': {
+                 'default': 'False',
+                 'description': '是否包含未来五日的天气预报',
+                 'type': 'boolean'
+             }
+         },
+         'required': [
+             'city'
+         ],
+         'type': 'object'
+     }
+ }
+}
+```
+
+- 要注意：<font color="red">**不使用 @tool 装饰器时，docstring不合法会被视为普通文本，作为 description，但如果使用了 @tool 时 docstring 不合法，将会抛出异常**</font>
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+
+@tool(parse_docstring=True)
+def get_weather(city: str, units: str = "celsius", include_forecast: bool =
+False) -> str:
+    """
+    获取当日天气，可选择是否同时查询未来五日天气预报
+    Args:
+        city: 城市
+        units: 气温单位，可选：celsius-摄氏度，fahrenheit-华氏度
+        include_forecast: 是否包含未来五日的天气预报
+    """
+    temp = 22 if units == "celsius" else 72
+    result = f'{city}当天气温: {temp} {"摄氏度" if units == "celsius" else "华
+氏度"}'
+    if include_forecast:
+        result += "\n未来五天都是晴天"
+    return result
+
+convert_to_openai_tool(get_weather)
+```
+
+- 报错如下
+
+```text
+Traceback...
+ValueError: Found invalid Google-Style docstring.
+```
 
 
 
+#### 2.2.2 更改工具名称
+
+- name_or_callable
+
+- 默认情况，使用函数名作为工具名称，但可以向@tool 传参 name_or_callable，以更改工具名称。
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from langchain.tools import tool
+
+@tool(name_or_callable="getWeather")
+def get_weather(city: str):
+    """
+    天气查询工具
+    """
+    return f"{city}天气晴朗"
+
+print(convert_to_openai_tool(get_weather))
+```
+
+- 输出如下
+
+```json
+{
+ 'type': 'function',
+ 'function': {
+     'name': 'getWeather',
+     'description': '天气查询工具',
+     'parameters': {
+         'properties': {
+             'city': {
+                 'type': 'string'
+             }
+         },
+         'required': [
+             'city'
+         ],
+         'type': 'object'
+     }
+ }
+}
+```
+
+- 说明：@tool中参数name_or_callable名称可以省略
+
+```python
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from langchain.tools import tool
+
+@tool("getWeather")
+def get_weather(city: str):
+    """
+    天气查询工具
+    """
+    print("天气晴朗")
+
+print(convert_to_openai_tool(get_weather))
+```
+
+- 输出如下
+
+```json
+{
+ 'type': 'function',
+ 'function': {
+     'name': 'getWeather',
+     'description': '天气查询工具',
+     'parameters': {
+         'properties': {
+             'city': {
+                 'type': 'string'
+             }
+         },
+         'required': [
+             'city'
+         ],
+         'type': 'object'
+     }
+ }
+}
+```
+
+- 说明：不要使用config或runtime作为参数名，这些是LangChain内部保留的。
+
+- 开发中，习惯使用函数名作为工具名称，不推荐自定义工具名称。
 
 
 
+#### 2.2.3 自定义args_schema
+
+##### 2.2.3.1 使用Pydantic模型定义
+
+- 当工具的参数变得复杂，需要 枚举值、 范围限制 或 更复杂的业务逻辑验证 时，Pydantic 模型是理想的选择，提供强大的类型检查和数据验证。
+
+- 使用Pydantic 的主要优势在于能够精确控制工具参数的格式和验证规则，让大模型更准确地理解如何调用工具。
+
+- <font color="red">**pydantic类型的定义**</font>
+
+  - **① BaseModel基类**
+
+  - 通过继承核心基类 BaseModel 定义数据模型，从而声明字段结构、类型约束、默认值以0及校验规则。
+
+    ```python
+    from pydantic import BaseModel
+    
+    class WeatherInput(BaseModel):
+        city: str
+    
+    print(WeatherInput(city="北京"))
+    ```
+
+    - 输出如下
+
+    ```python
+    city='北京'
+    ```
+
+    - 注意：<font color="red">**BaseModel子类初始化时，不接收位置参数，字段值必须以关键字参数的形式传入，否则报错。**</font>
+
+    ```python
+    from pydantic import BaseModel
+    
+    class WeatherInput(BaseModel):
+        city: str
+    
+    print(WeatherInput("北京"))
+    ```
+
+    - 报错如下
+
+    ```python
+    TypeError
+    ......
+    TypeError: BaseModel.__init__() takes 1 positional argument but 2 were
+    given
+    ```
+
+    - 这是因为BaseModel的初始化函数签名如下
+
+    ```python
+    def __init__(self, /, **data: Any) -> None:
+    ```
+
+    - 由此可知，所有关键字参数都会被收集到字典 data 中，然后 data 会按照参数类型注解进行校验，失败时抛出异常
+
+  - **② Field**
+
+    - Field()：用来“定制字段”的函数，可用于设置默认值、描述等。
+    - 举例1：设置默认值
+
+    ~~~python
+    from pydantic import BaseModel, Field
+    
+    class WeatherInput(BaseModel):
+        city: str = Field(
+            default= "北京"
+        )
+    
+    print(WeatherInput())
+    ~~~
+
+    - 输出
+
+    ~~~python
+    city='北京'
+    ~~~
+
+    - 举例2：设置参数的描述信息每个字段的 description 参数至关重要，它直接影响大模型理解参数含义的能力。
+
+    ~~~python
+    from pydantic import BaseModel, Field
+    
+    class WeatherInput(BaseModel):
+        city: str = Field(
+            default= "北京",
+            description="城市"
+        )
+        include_forecast: bool = Field(
+            default=False,
+            description="是否包含未来五日天气预报"
+        )
+    
+    print(WeatherInput())
+    ~~~
+
+    - 输出
+
+    ~~~python
+    city='北京' include_forecast=False
+    ~~~
+
+  - <font color="red">**③ Literal**</font>
+
+    - 可以使用 Literal类型限定参数为固定选项。
+
+    - Literal：表示字段不能是任意某种类型的值，而只能是几个固定字面量之一。
+
+    - 举例1：
+
+    ```python
+    from pydantic import BaseModel
+    from typing import Literal
+    
+    class WeatherInput(BaseModel):
+        city: str
+        unit: Literal["celsius", "fahrenheit"]
+    
+    print("===============> 合法 <===============")
+    print(WeatherInput(city="北京", unit="celsius"))
+    
+    print("===============> 非法 <===============")
+    try:
+        print(WeatherInput(city="北京", unit="kelvin"))
+    except Exception as e:
+        print("报错类型：", type(e).__name__)
+        print(e)
+    ```
+
+    - 输出
+
+    ```text
+    ===============> 合法 <===============
+    city='北京' unit='celsius'
+    ===============> 非法 <===============
+    报错类型： ValidationError
+    1 validation error for WeatherInput
+    unit
+    Input should be 'celsius' or 'fahrenheit' [type=literal_error,
+    input_value='kelvin', input_type=str]
+     For further information visit
+    <https://errors.pydantic.dev/2.12/v/literal_error>
+    ```
+
+    - 举例2：
+
+    ```python
+    from pydantic import BaseModel, Field
+    
+    class WeatherInput(BaseModel):
+        city: str = Field(
+            default= "北京",
+            description="城市"
+        )
+        unit: Literal["celsius", "fahrenheit"] = Field(
+            default="celsius",
+            description="气温单位"
+        )
+        include_forecast: bool = Field(
+            default=False,
+            description="是否包含未来五日天气预报"
+        )
+    
+    print(WeatherInput())
+    ```
+
+    - 输出
+
+    ```text
+    city='北京' unit='celsius' include_forecast=False
+    ```
+
+- <font color="red">**使用Pydantic定义args_schema**</font>
+
+  - 通过 @tool(args_schema=PydanticModelCls) 将这个 Pydantic 模型与工具函数关联。
+
+  - 利用 Pydantic 的类型系统进行参数验证，当大模型需要调用工具前，Pydantic 会自动验证参数的类型和有效性。
+
+  - 举例：
+
+  ```python
+  from pydantic import BaseModel, Field
+  from langchain.tools import tool
+  from langchain_core.utils.function_calling import convert_to_openai_tool
+  
+  class WeatherInput(BaseModel):
+      city: str = Field(
+          default= "北京",
+          description="城市"
+      )
+      unit: Literal["celsius", "fahrenheit"] = Field(
+          default="celsius",
+          description="气温单位"
+      )
+      include_forecast: bool = Field(
+          default=False,
+          description="是否包含未来五日天气预报"
+      )
+  
+  @tool(args_schema=WeatherInput)
+  def get_weather(city: str, unit: str = "celsius", include_forecast: bool =
+  False) -> str:
+      """获取当日天气，可选未来五日天气预报"""
+      temp = 22 if unit == "celsius" else 72
+      result = f'{city}当天气温: {temp} {"摄氏度" if unit == "celsius" else "华氏
+  度"}'
+      if include_forecast:
+          result += "\n未来五天都是晴天"
+      return result
+  
+  convert_to_openai_tool(get_weather)
+  ```
+
+  - 输出
+
+  ```json
+  {
+   'type': 'function',
+   'function': {
+       'name': 'get_weather',
+       'description': '获取当日天气，可选未来五日天气预报',
+       'parameters': {
+           'properties': {
+               'city': {
+                   'default': '北京',
+                   'description': '城市',
+                   'type': 'string'
+               },
+               'unit': {
+                   'default': 'celsius',
+                   'description': '气温单位',
+                   'enum': [
+                       'celsius',
+                       'fahrenheit'
+                   ],
+                   'type': 'string'
+               },
+               'include_forecast': {  
+                   'default': False,
+                   'description': '是否包含未来五日天气预报',
+                   'type': 'boolean'
+               }
+           },
+           'type': 'object'
+       }
+   }
+  }
+  ```
+
+  #### 
+
+##### 2.2.3.2 使用Json Schema定义
+
+- 在 LangChain 中，还可以直接使用 JSON Schema 字典 来定义工具的参数模式。这种方式提供了极大的灵活性。
+
+- 因为工具参数模式可以基于数据库配置或用户输入在 运行时动态生成，所以这种方式特别适合参数结构需要动态生成的场景。
+
+- 举例：
+
+```json
+{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "获取当日天气，可选未来五日天气预报",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"},
+                "units": {"type": "string"},
+                "include_forecast": {"type": "boolean"}
+            },
+            "required": ["location", "units", "include_forecast"]
+        },
+    }
+}
+```
+
+- 应该传递给args_schema的只有 parameters 对应的JSON字符串，即
+
+```json
+{
+    "type": "object",
+    "properties": {
+        "location": {"type": "string"},
+        "units": {"type": "string"},
+        "include_forecast": {"type": "boolean"}
+    },
+    "required": ["location", "units", "include_forecast"]
+}
+```
+
+- 举例：通过 @tool(args_schema=json_schema_dict) 将一个符合 JSON Schema 标准的字典与工具函数关联。
+
+```python
+from langchain.tools import tool
+from langchain_core.utils.function_calling import convert_to_openai_tool
+
+weather_schema = {
+    "type": "object",
+    "properties": {
+        "location": {"type": "string"},
+        "units": {"type": "string"},
+        "include_forecast": {"type": "boolean"}
+    },
+    "required": ["location", "units", "include_forecast"]
+}
+
+@tool(args_schema=weather_schema)
+def get_weather(city: str, unit: str = "celsius", include_forecast: bool =
+False) -> str:
+    """获取当日天气，可选未来五日天气预报"""
+    temp = 22 if unit == "celsius" else 72
+    result = f'{city}当天气温: {temp} {"摄氏度" if unit == "celsius" else "华氏
+度"}'
+    if include_forecast:
+        result += "\n未来五天都是晴天"
+    return result
+
+print(convert_to_openai_tool(get_weather))
+```
+
+- 输出
+
+```json
+{
+ 'type': 'function',
+ 'function': {
+     'name': 'get_weather',
+     'description': '获取当日天气，可选未来五日天气预报',
+     'parameters': {
+         'type': 'object',
+         'properties': {
+             'location': {
+                 'type': 'string'
+             },
+             'units': {
+                 'type': 'string'
+             },
+             'include_forecast': {
+                 'type': 'boolean'
+             }
+         },
+         'required': [
+             'location',
+             'units',
+             'include_forecast'
+         ]
+     }
+ }
+}
+```
 
 
 
+## 3、工具应用
+
+### 3.1 使用args_schema
+
+- arg_schema给出明确的参数信息
+
+~~~python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+# 3、使用args_schema定义工具
+class WeatherSchema(BaseModel):
+    city: str = Field(default="北京", description="城市名称")
+    if_forecast: bool = Field(default=False, description="是否包含明日天气预报")
+
+@tool(description="查询当日天气，可以包含明日天气预报", args_schema=WeatherSchema)
+def get_weather(city: str, if_forecast: bool):
+    res = f"{city} 今天天气不错"
+    if if_forecast:
+        res += "\n明天也不错"
+    return res
+
+# 4、模型绑定工具
+model_with_tool = model.bind_tools([get_weather])
+
+# 5、工具调用
+messages = [HumanMessage("今天武汉天气如何？明天呢？")]
+response = model_with_tool.invoke(messages)
+messages.append(response)
+
+# 6、添加工具消息到消息列表
+tool_calls = response.tool_calls
+for tool_call in tool_calls:
+    if tool_call["name"] == "get_weather":
+        tool_msg = get_weather.invoke(tool_call)
+        messages.append(tool_msg)
+
+final_response = model_with_tool.invoke(messages)
+messages.append(final_response)
+for msg in messages:
+    msg.pretty_print()
+~~~
+
+~~~python
+================================ Human Message =================================
+
+今天武汉天气如何？明天呢？
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (call_9e93c74e00fb4320bec601ee)
+ Call ID: call_9e93c74e00fb4320bec601ee
+  Args:
+    city: 武汉
+    if_forecast: True
+================================= Tool Message =================================
+Name: get_weather
+
+武汉 今天天气不错
+明天也不错
+================================== Ai Message ==================================
+
+我查了一下武汉的天气：
+
+- **今天**：天气不错 ☀️
+- **明天**：天气也不错 ☀️
+
+不过查询工具返回的信息比较简略，没有给出具体的温度、湿度、风力等细节，只做了整体评价。如果你需要更精确的数据（比如最高/最低气温、降雨概率），建议再看看手机天气 App 或中国天气网，会更保险一些。
+
+需要我帮你查其他城市，或者补充别的信息吗？
+~~~
 
 
 
+### 3.2 撰写docstring
+
+- 可以在docstring中撰写参数的描述信息，此时参数默认值和类型都要通过函数签名传递。
+- 工具的定义与模拟调用：
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from pydantic import BaseModel, Field
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+# 3、使用args_schema定义工具
+class WeatherSchema(BaseModel):
+    city: str = Field(default="北京", description="城市名称")
+    if_forecast: bool = Field(default=False, description="是否包含明日天气预报")
+
+@tool("get_weather_and_forecast", parse_docstring=True)
+def get_weather(city: str="北京", if_forecast: bool=False):
+    """
+    查询当日天气，可以包含明日天气预报
+
+    Args:
+         city: 城市名称
+         if_forecast: 是否包含明日天气预报
+    """
+    res = f"{city} 今天天气不错"
+    if if_forecast:
+        res += "\n明天要下雨"
+    return res
+
+print(convert_to_openai_tool(get_weather))
+
+model_with_tools = model.bind_tools([get_weather])
+
+messages = [HumanMessage("今天杭州天气如何？明天呢？")]
+response = model_with_tools.invoke(messages)
+messages.append(response)
+tool_calls = response.tool_calls
+
+# 将工具调用的结果添加到消息列表中
+for tool_call in tool_calls:
+    if tool_call["name"] == "get_weather_and_forecast":
+        # 返回值tool_msg类型是ToolMessage
+        tool_msg = get_weather.invoke(tool_call)
+        messages.append(tool_msg)
+
+final_response = model_with_tools.invoke(messages)
+
+messages.append(final_response)
+
+for msg in messages:
+    msg.pretty_print()
+```
+
+- 注意：要正确解析docstring，必须在@tool中将 parse_docstring 设置为 True。
+
+- 输出
+
+```text
+{'type': 'function', 'function': {'name': 'get_weather_and_forecast', 'description': '查询当日天气，可以包含明日天气预报', 'parameters': {'properties': {'city': {'default': '北京', 'description': '城市名称', 'type': 'string'}, 'if_forecast': {'default': False, 'description': '是否包含明日天气预报', 'type': 'boolean'}}, 'type': 'object'}}}
+================================ Human Message =================================
+
+今天杭州天气如何？明天呢？
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather_and_forecast (call_c88f9f737e8240d186c5b74d)
+ Call ID: call_c88f9f737e8240d186c5b74d
+  Args:
+    city: 杭州
+    if_forecast: True
+================================= Tool Message =================================
+Name: get_weather_and_forecast
+
+杭州 今天天气不错
+明天要下雨
+================================== Ai Message ==================================
+
+杭州的天气情况如下：
+
+- **今天**：天气不错，适合外出活动 ☀️
+- **明天**：预计会下雨 🌧️，建议出门带上雨伞
+
+祝你有愉快的一天！如需其他城市的天气，随时告诉我。
+```
 
 
 
+### 3.3 多工具调用1
+
+- 大模型调用工具是单次推理，即每次运行调用一个工具，当调用多个工具时，需要用户自己管理多次调用循环。
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+# 3、定义工具
+# 定义股票查询工具
+@tool(parse_docstring=True)
+def get_stock_price(company: str, timeframe: str = "today") -> str:
+    """获取指定公司的股票价格信息
+
+    Args:
+        company: 公司名称（如：苹果公司, 微软公司, 谷歌公司）
+        timeframe: 时间范围（today-今日, week-本周, month-本月）
+    """
+    # 模拟股票数据
+    mock_data = {
+        "苹果公司": {"today": 185.20, "week": 183.50, "month": 180.75},
+        "微软公司": {"today": 415.86, "week": 412.30, "month": 405.42},
+        "谷歌公司": {"today": 15.42, "week": 15.20, "month": 14.85}
+    }
+
+    if company in mock_data:
+        price = mock_data[company].get(timeframe, "未知时间范围")
+        return f"{company} {timeframe}价格: {price}美元"
+    else:
+        return f"未找到股票代码 {company} 的数据"
+
+
+# 定义新闻搜索工具
+@tool(parse_docstring=True)
+def search_news(company: str) -> str:
+    """搜索指定公司的财经新闻
+
+    Args:
+        company: 公司名称
+
+    Returns:
+        公司的财经新闻，每个新闻占一行
+    """
+    # 模拟新闻数据
+    mock_news = {
+        "苹果公司": [
+            "苹果发布新款iPhone，股价上涨3%",
+            "苹果与欧盟达成反垄断和解协议",
+            "苹果将在印度扩大生产规模"
+        ],
+        "微软公司": [
+            "微软Azure云业务季度增长超预期",
+            "微软完成对Nuance的收购",
+            "微软推出新一代AI助手Copilot"
+        ],
+        "谷歌公司": [
+            "谷歌发布新AI模型，性能提升20%",
+            "谷歌与OpenAI合作，开发新的AI助手",
+            "谷歌在欧洲展开AI研究项目"
+        ]
+    }
+
+    news_list = mock_news.get(company, [f"未找到{company}的相关新闻"])
+    return "\n".join(news_list)
+
+
+# rprint(convert_to_openai_tool(search_news))
+
+# 4、初始化模型并绑定工具
+tools = [get_stock_price, search_news]
+model_with_tools = model.bind_tools(tools)
+
+message_list = []
+human_message = HumanMessage(content="苹果公司今天的股价是多少？最近有什么新闻？")
+# human_message = HumanMessage(content="比较一下微软和苹果的股价")
+# human_message = HumanMessage(content="腾讯最近有什么重大新闻？")
+# human_message = HumanMessage(content="海水为什么是咸的？")
+message_list.append(human_message)
+
+# 5、工具调用
+while True:
+    response = model_with_tools.invoke(message_list)
+    message_list.append(response)
+
+    # 如果模型不需要调用工具，直接退出循环
+    if not response.tool_calls:
+        print("没有工具调用，直接返回答案")
+        break
+
+    # 如果有调用工具，处理工具调用响应
+    # 4.开发者根据模型的响应，调用工具并获取结果
+    for tool_call in response.tool_calls:
+        if tool_call["name"] == "get_stock_price":
+            stock_result = get_stock_price.invoke(tool_call)
+            print("stock_result", stock_result)
+            message_list.append(stock_result)
+        if tool_call["name"] == "search_news":
+            news_result = search_news.invoke(tool_call)
+            print("news_result", news_result)
+            message_list.append(news_result)
+
+
+# print("response", response)
+# print(response.content)
+
+for msg in message_list:
+    msg.pretty_print()
+```
+
+输出：
+
+```text
+stock_result content='苹果公司 today价格: 185.2美元' name='get_stock_price' tool_call_id='call_c7e16307483040e4b1ab899b'
+news_result content='苹果发布新款iPhone，股价上涨3%\n苹果与欧盟达成反垄断和解协议\n苹果将在印度扩大生产规模' name='search_news' tool_call_id='call_447c27449fb543b791283520'
+没有工具调用，直接返回答案
+================================ Human Message =================================
+
+苹果公司今天的股价是多少？最近有什么新闻？
+================================== Ai Message ==================================
+
+我来帮您查询苹果公司的股价和最新新闻。
+Tool Calls:
+  get_stock_price (call_c7e16307483040e4b1ab899b)
+ Call ID: call_c7e16307483040e4b1ab899b
+  Args:
+    company: 苹果公司
+    timeframe: today
+  search_news (call_447c27449fb543b791283520)
+ Call ID: call_447c27449fb543b791283520
+  Args:
+    company: 苹果公司
+================================= Tool Message =================================
+Name: get_stock_price
+
+苹果公司 today价格: 185.2美元
+================================= Tool Message =================================
+Name: search_news
+
+苹果发布新款iPhone，股价上涨3%
+苹果与欧盟达成反垄断和解协议
+苹果将在印度扩大生产规模
+================================== Ai Message ==================================
+
+为您查询到苹果公司的最新信息：
+
+## 📈 今日股价
+**185.2 美元**
+
+## 📰 最新新闻
+1. **苹果发布新款iPhone，股价上涨3%** — 新品发布带动股价走强
+2. **苹果与欧盟达成反垄断和解协议** — 缓解了在欧洲市场的监管压力
+3. **苹果将在印度扩大生产规模** — 持续推进供应链多元化布局
+
+---
+
+**简要解读：**
+- 新款 iPhone 发布是今日股价上涨（+3%）的主要推动力，显示市场对新品反应积极
+- 与欧盟和解有助于降低法律与合规风险
+- 印度扩产则体现苹果分散供应链、降低单一地区依赖的长期战略
+
+如需了解更详细的信息（如本周/本月股价走势、某条新闻的深入分析），请随时告诉我！
+```
 
 
 
+### 3.4 多工具调用2
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+@tool(parse_docstring=True)
+def get_news() -> str:
+    """
+    获取当日新闻
+    """
+    return "近期，受全球储蓄芯片短缺等多重因素影响，多地回收商称废旧手机回收市场迎来“火热潮”，回收价格普遍上涨，旧手机成“香饽饽”。"
+
+model_with_tools = model.bind_tools([get_weather, get_news])
+
+messages = [
+    HumanMessage("今天杭州天气如何？今天新闻是什么？别瞎编")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (call_30d9f0e09f504f8e96e63ad9)
+ Call ID: call_30d9f0e09f504f8e96e63ad9
+  Args:
+    city: 杭州
+  get_news (call_401f5ebd812f40eb851b63c8)
+ Call ID: call_401f5ebd812f40eb851b63c8
+  Args:
+```
+
+- 此时可以遍历tool_calls列表，挨个调用工具。
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+@tool(parse_docstring=True)
+def get_news() -> str:
+    """
+    获取当日新闻
+    """
+    return "近期，受全球储蓄芯片短缺等多重因素影响，多地回收商称废旧手机回收市场迎来“火热潮”，回收价格普遍上涨，旧手机成“香饽饽”。"
+
+model_with_tools = model.bind_tools([get_weather, get_news])
+
+messages = [
+    HumanMessage("今天杭州天气如何？今天新闻是什么？别瞎编")
+]
+
+response = model_with_tools.invoke(messages)
+messages.append(response)
+for tool_call in response.tool_calls:
+    if tool_call["name"] == "get_weather":
+        tool_msg = get_weather.invoke(tool_call)
+        print(tool_msg)
+        messages.append(tool_msg)
+    elif tool_call["name"] == "get_news":
+        tool_msg = get_news.invoke(tool_call)
+        print(tool_msg)
+        messages.append(tool_msg)
+    else:
+        raise Exception("不存在的工具")
+
+final_response = model.invoke(messages)
+messages.append(final_response)
+
+for msg in messages:
+    msg.pretty_print()
+```
+
+- 输出
+
+```text
+content='杭州当天晴朗' name='get_weather' tool_call_id='call_33678d9891d94d02877aaee5'
+content='近期，受全球储蓄芯片短缺等多重因素影响，多地回收商称废旧手机回收市场迎来“火热潮”，回收价格普遍上涨，旧手机成“香饽饽”。' name='get_news' tool_call_id='call_b3c2a02bcdfb45b181d55a08'
+================================ Human Message =================================
+
+今天杭州天气如何？今天新闻是什么？别瞎编
+================================== Ai Message ==================================
+
+我来查询这两项信息。
+Tool Calls:
+  get_weather (call_33678d9891d94d02877aaee5)
+ Call ID: call_33678d9891d94d02877aaee5
+  Args:
+    city: 杭州
+  get_news (call_b3c2a02bcdfb45b181d55a08)
+ Call ID: call_b3c2a02bcdfb45b181d55a08
+  Args:
+================================= Tool Message =================================
+Name: get_weather
+
+杭州当天晴朗
+================================= Tool Message =================================
+Name: get_news
+
+近期，受全球储蓄芯片短缺等多重因素影响，多地回收商称废旧手机回收市场迎来“火热潮”，回收价格普遍上涨，旧手机成“香饽饽”。
+================================== Ai Message ==================================
+
+根据查询结果：
+
+**杭州天气：** 今天晴朗。
+
+**今日新闻：** 近期受全球存储芯片短缺等多重因素影响，多地回收商称废旧手机回收市场迎来“火热潮”，回收价格普遍上涨，旧手机成“香饽饽”。
+
+以上均为查询到的信息，未做编造。
+```
 
 
 
+## 4、强制使用工具
 
+### 4.1 tool_choice参数说明
+
+- <font color="red">**bind_tools 可以传递参数 tool_choice，用于控制是否强制使用工具**</font>
+
+- 该字段最终会作为 payload 的 tool_choice 字段传递给模型，OpenAI和Deepseek的官方API服务对于tool_choice 的取值做了相同的规定。
+
+- OpenAI官方文档
+
+![OpenAI官方文档中的tool_choice说明](图片/openai-tool-choice-doc.png)
+
+- Deepseek官方文档
+
+![DeepSeek官方文档中的tool_choice说明](图片/deepseek-tool-choice-doc.png)
+
+- none：模型不会调用任何工具。
+
+- auto： 默认值，模型可以自主决定不调用或调用任意数量的工具。
+
+- required：模型必须调用工具，数量不限。此外， tool_choice 还支持传递 any，等价于 required。
+
+
+
+### 4.2 none值举例
+
+- 举例：
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather], tool_choice="none")
+
+messages = [
+    HumanMessage("今天北京天气如何？别瞎编")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 用户要求查询天气，并提供了天气查询工具，但模型不会调用。
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+
+我无法实时联网获取天气数据，所以不能准确告诉你今天（2026年5月7日）北京的真实天气，避免瞎编。
+
+建议你查这几个权威来源：
+- 北京市气象局官网/微博
+- 中国天气网
+- 手机自带天气 App（定位北京）
+
+如果你把看到的天气截图或数据发我，我可以帮你解读、判断穿衣和出行建议。
+```
+
+
+
+### 4.3 auto值举例
+
+- tool_choice 的默认值就是 auto。
+
+- **举例1：需要调用工具的场景**
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather], tool_choice="auto")
+
+messages = [
+    HumanMessage("今天北京天气如何？别瞎编")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (call_fd688b77a3d84b1bb15391ed)
+ Call ID: call_fd688b77a3d84b1bb15391ed
+  Args:
+    city: 北京
+```
+
+**举例2：不需要调用工具的场景**
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather], tool_choice="auto")
+
+messages = [
+    HumanMessage("你好啊")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+
+你好！很高兴见到你 😊
+
+有什么我可以帮你的吗？比如查一下天气、聊聊天，或者其他问题都可以～
+```
+
+
+
+### 4.4 required值举例
+
+- **举例1：需要调用工具的场景**
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather], tool_choice="required")
+
+messages = [
+    HumanMessage("今天北京天气如何？别瞎编")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (chatcmpl-tool-83f31411db83bd4e)
+ Call ID: chatcmpl-tool-83f31411db83bd4e
+  Args:
+    city: 北京
+```
+
+- **举例2：不需要调用工具的场景**
+
+```python
+from langchain.tools import tool
+from langchain.messages import HumanMessage
+
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather], tool_choice="required")
+
+messages = [
+    HumanMessage("你好啊")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 即便此时不需要，模型依然会调用工具
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (chatcmpl-tool-9cb806aad2833faa)
+ Call ID: chatcmpl-tool-9cb806aad2833faa
+  Args:
+    city: 北京
+```
+
+- 此外， <font color="red">**any 行为和 required 一致**</font>
+
+~~~python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather], tool_choice="any")
+
+messages = [
+    HumanMessage("你好啊")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+~~~
+
+- 输出
+
+~~~text
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (chatcmpl-tool-8584f85f3cedeac3)
+ Call ID: chatcmpl-tool-8584f85f3cedeac3
+  Args:
+    city: 北京
+~~~
+
+
+
+### 5.5 强制调用特定的工具
+
+- 某些场景下我们希望调用特定的工具，仍然可以用 tool_choice 解决。
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather1(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+@tool(parse_docstring=True)
+def get_weather2(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather1, get_weather2], tool_choice="get_weather2")
+
+messages = [
+    HumanMessage("杭州今天天气如何？")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather2 (chatcmpl-tool-8100135544e34e1a)
+ Call ID: chatcmpl-tool-8100135544e34e1a
+  Args:
+    city: 杭州
+```
+
+- 反过来指定 get_weather1
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+# 1、加载配置文件信息
+load_dotenv(override=True)
+
+# 2、构造模型
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+@tool(parse_docstring=True)
+def get_weather1(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+@tool(parse_docstring=True)
+def get_weather2(city: str) -> str:
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f'{city}当天晴朗'
+
+model_with_tools = model.bind_tools([get_weather1, get_weather2], tool_choice="get_weather1")
+
+messages = [
+    HumanMessage("杭州今天天气如何？")
+]
+
+response = model_with_tools.invoke(messages)
+response.pretty_print()
+```
+
+- 输出
+
+```text
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather1 (chatcmpl-tool-b9eb339c06933b33)
+ Call ID: chatcmpl-tool-b9eb339c06933b33
+  Args:
+    city: 杭州
+```
+
+
+
+## 5、实践经验总结
+
+### 5.1 清晰的描述
+
+```python
+# ✅ 好
+@tool(parse_docstring=True)
+def search_flights(origin: str, destination: str, date: str) -> str:
+    """
+    搜索航班信息
+
+    Args:
+        origin: 出发城市，如"北京"
+        destination: 目的地城市，如"上海"
+        date: 出发日期，格式 YYYY-MM-DD
+
+    Returns:
+        可用航班的 JSON 列表
+    """
+```
+
+
+
+### 5.2 功能单一
+
+```python
+# ❌ 不好：一个工具做太多事
+@tool
+def do_everything(action: str, data: str) -> str:
+    """做各种事情"""
+    if action == "weather": ...
+    elif action == "calculate": ...
+    elif action == "search": ...
+
+# ✅ 好：每个工具做一件事
+@tool
+def get_weather(city: str) -> str:
+    """获取天气"""
+    ...
+
+@tool
+def calculator(operation: str, a: float, b: float) -> str:
+    """计算"""
+    ...
+```
+
+
+
+### 5.3 如何处理工具失败？
+
+- 三层防护：
+  - 第1层：工具内部处理
+
+  ~~~python
+  @tool
+  def divide(a: float, b: float) -> str:
+      """
+      除法计算
+  
+      Args:
+          a: 被除数
+          b: 除数
+      """
+      try:
+          if b == 0:
+              return "错误：除数不能为零"
+          result = a / b
+          return f"{a} / {b} = {result}"
+      except Exception as e:
+          return f"计算错误：{e}"
+  ~~~
+
+  - 第2层：Agent 级重试（使用 prompt）
+
+  ~~~python
+  agent = create_agent(
+      model=model,
+      tools=[...],
+      prompt="如果工具失败，尝试使用其他方法解决问题。"
+  )
+  ~~~
+
+  - 第3层：调用级重试。在大模型应用（如 LangChain）中，网络请求和外部工具调用是最容易掉链子的地方。 @retry  就像是一个 容错保险。
+
+  ~~~python
+  from tenacity import retry, stop_after_attempt
+  
+  # 1. 配置重试规则：如果失败，最多尝试 3 次（即第 1 次正常调用 + 2 次重试）
+  @retry(stop=stop_after_attempt(3))
+  def call_agent(question):
+      # 2. 核心业务逻辑：调用 LangChain 的 Agent
+      return agent.invoke({"messages": [{"role": "user", "content":
+  question}]})
+  ~~~
+
+  - 它的工作流程：
+
+    - ① 你调用 call_agent("你好")。
+
+    - ② 程序进入函数，执行 agent.invoke(...)。
+    - ③ 如果执行成功：正常返回结果， @retry  什么都不做。
+    - ④ 如果执行失败（报错）： @retry  会拦截这个错误，不让程序直接崩溃。它会默默地帮你再次触发agent.invoke(...)。
+    - ⑤ 如果连续 3 次都报错：它终于放弃了，把第 3 次的报错真正抛出来，程序此时才会报错中止。
+
+
+
+### 5.4 返回字符串
+
+```python
+# ✅ 好：返回字符串
+@tool
+def get_user_info(user_id: str) -> str:
+    """获取用户信息"""
+    user = {"id": user_id, "name": "张三"}
+    return json.dumps(user, ensure_ascii=False)  # 转成 JSON 字符串
+
+
+# ❌ 不好：返回字典（某些情况可能有问题）
+@tool
+def get_user_info(user_id: str) -> dict:
+    """获取用户信息"""
+    return {"id": user_id, "name": "张三"}
+```
+
+- 在编写传统的 Python 代码时，返回字典（dict）显然更方便后续代码处理。<font color="red">**但在 LangChain 的工具（Tools）生态中，强烈建议工具返回字符串（str**）</font>。因为：
+  - 1）大模型（LLM）的本质只吃“文本”
+  - 2）避免大模型“胡思乱想”（乱码与格式问题）
+
+- 如果你返回一个包含中文的字典 {"name": "张三"}，LangChain 在强制将其转换为字符串时，默认可能会采用 Unicode 编码，变成 {"name": "\u5f20\u4e09"}。
+
+- 大模型虽然能理解 Unicode，但极易受到干扰。直接看到中文 张三 的大模型，和看到\u5f20\u4e09  的大模型，其输出的稳定性和准确率是有差距的。通过手动 json.dumps(...,ensure_ascii=False)，你确保了喂给大模型的是最干净、最直观的纯文本。
+
+- json.dumps()是 Python 标准库 json模块中的函数，用于将 Python 对象（如字典、列表）序列化成一个 JSON 格式的字符串。
+
+- ensure_ascii=False : 这个参数默认值为 True，表示所有非 ASCII 字符（如中文）会被转换成\uXXXX形式的转义序列。设置为 False后，中文、表情符号等字符就能在 JSON 字符串中正常显示，而不是一堆乱码。
+
+
+
+### 5.5 选择同步 vs 异步
+
+- 同步工具：简单场景，CPU 密集型任务
+- 异步工具：IO 密集型（API 调用、数据库、文件操作）
+
+```python
+# 同步
+@tool
+def sync_tool(x: str) -> str:
+    return process(x)
+
+# 异步
+@tool
+async def async_tool(x: str) -> str:
+    return await async_process(x)
+```
 
 
 
@@ -5781,12 +7565,25 @@ print(f"关键词列表：{response.keywords}")
 
   - 使用Optional 指定字段为可选的。
 
-
-  - 举例：
+    - 举例：
 
   ~~~python
+  import os
+  
+  from dotenv import load_dotenv
+  from langchain.chat_models import init_chat_model
   from pydantic import BaseModel, Field
-  from typing import Optional
+  
+  # 1、加载配置文件
+  load_dotenv(override=True)
+  
+  # 2、初始化模型对象
+  model = init_chat_model(
+      model=os.getenv("CHAT_MODEL"),
+      model_provider='openai',
+      base_url=os.getenv("CHAT_BASE_URL"),
+      api_key=os.getenv("CHAT_API_KEY")
+  )
   
   class Person(BaseModel):
       """人物信息"""
@@ -5794,20 +7591,35 @@ print(f"关键词列表：{response.keywords}")
       age: int = Field(description="年龄")
       occupation: str = Field(description="职业")
   
-  structured_llm = model_with_closeai.with_structured_output(Person)
   
-  structured_llm.invoke("张三是一名医生")
+  structured_llm = model.with_structured_output(Person)
+  print(structured_llm.invoke("张三是一名医生"))
   ~~~
 
   ~~~python
-  Person(name='张三', age=0, occupation='医生')
+  name='张三' age=38 occupation='内科医生'
   ~~~
 
   - 作为对比：
 
   ~~~python
+  import os
   from typing import Optional
+  
+  from dotenv import load_dotenv
+  from langchain.chat_models import init_chat_model
   from pydantic import BaseModel, Field
+  
+  # 1、加载配置文件
+  load_dotenv(override=True)
+  
+  # 2、初始化模型对象
+  model = init_chat_model(
+      model=os.getenv("CHAT_MODEL"),
+      model_provider='openai',
+      base_url=os.getenv("CHAT_BASE_URL"),
+      api_key=os.getenv("CHAT_API_KEY")
+  )
   
   class Person(BaseModel):
       """人物信息"""
@@ -5815,9 +7627,9 @@ print(f"关键词列表：{response.keywords}")
       age: Optional[int] = Field(description="年龄")
       occupation: str = Field(description="职业")
   
-  structured_llm = model_with_closeai.with_structured_output(Person)
   
-  structured_llm.invoke("张三是一名医生")
+  structured_llm = model.with_structured_output(Person)
+  print(structured_llm.invoke("张三是一名医生"))
   ~~~
 
   ~~~python
@@ -5828,586 +7640,565 @@ print(f"关键词列表：{response.keywords}")
 
   - LLM 未提供的信息会使用默认值。格式如下：
 
+    - Field(default="默认值", description="描述")
 
-  - Field(default="默认值", description="描述")
+    - >注意：不同模型提供商对default字段的支持是不同的。
 
-  - >注意：不同模型提供商对default字段的支持是不同的。
-
-  - 举例1：使用CloseAI平台的gpt模型：
-
-  ~~~python
-  from typing import Optional
-  from pydantic import BaseModel, Field
-  
-  class Person(BaseModel):
-      """人物信息"""
-      name: str = Field(description="姓名")
-      age: int = Field(1,description="年龄")
-      occupation: str = Field(description="职业")
-  
-  structured_llm = model_with_closeai.with_structured_output(Person)
-  
-  structured_llm.invoke("张三是一名医生")
-  ~~~
+    - 举例1：使用CloseAI平台的gpt模型：
 
   ~~~python
-  Person(name='张三', age=0, occupation='医生')
+  
   ~~~
 
-  
 
-作为对比：
 
-```python
-from typing import Optional
-from pydantic import BaseModel, Field
-
-class Person(BaseModel):
-    """人物信息"""
-    name: str = Field(description="姓名")
-    age: int = Field(1,description="年龄")
-    occupation: str = Field(description="职业")
-
-structured_llm = model_with_openrouter.with_structured_output(Person)
-
-structured_llm.invoke("张三是一名医生")
-```
-
-```python
-Person(name='张三', age=1, occupation='医生')
-```
-
-举例2：
-
-```python
-class Config(BaseModel):
-    timeout: Optional[int] = Field(30,description="超时时间(单位秒)")
-    retry: bool = Field(False,description="是否支持重试")
-    max_attempts: int = Field(6,description="最大重试次数")
-
-# 测试
-structured_llm = model_with_closeai.with_structured_output(Config)
-structured_llm.invoke("配置要求：支持重试,最多重试5次")
-```
-
-```python
-Config(timeout=None, retry=True, max_attempts=5)
-```
-
-作为对比：
-
-```python
-class Config(BaseModel):
-    timeout: Optional[int] = Field(30,description="超时时间(单位秒)")
-    retry: bool = Field(False,description="是否支持重试")
-    max_attempts: int = Field(6,description="最大重试次数")
-
-# 测试
-structured_llm = model_with_openrouter.with_structured_output(Config)
-structured_llm.invoke("配置要求：支持重试,最多重试5次")
-```
-
-```python
-Config(timeout=None, retry=True, max_attempts=5)
-```
-
-举例3：
-
-```python
-from typing import Optional
-from pydantic import BaseModel, Field
-
-class Product(BaseModel):
-    """产品信息"""
-    name: str = Field(description="产品名称")
-    price: float = Field(description="价格")
-    description: Optional[str] = Field(description="产品描述")
-    stock: int = Field(default=100, description="库存")
-
-# 测试
-structured_llm = model_with_openrouter.with_structured_output(Product)
-print("\n场景1：完整信息")
-result1 = structured_llm.invoke("iPhone 15 售价 5999 元，最新款智能手机，库存 50台")
-print(result1)
-
-print("\n场景2：缺少描述和库存")
-result2 = structured_llm.invoke("MacBook Pro 售价 12999 元")
-print(result2)
-```
-
-```python
-场景1：完整信息
-name='iPhone 15' price=5999.0 description='最新款智能手机' stock=50
-
-场景2：缺少描述和库存
-name='MacBook Pro' price=12999.0 description=None stock=100
-```
-
-##### 情况3：枚举类型
-
-问题：如何限制字段的可选值？
-
-回答：使用枚举。
-
-举例1：
-
-```python
-from enum import Enum
-
-class Priority(str, Enum):
-    LOW = "低"
-    MEDIUM = "中"
-    HIGH = "高"
-
-class Task(BaseModel):
-    title: str
-    priority: Priority  # 只能是 LOW/MEDIUM/HIGH
-```
-
-举例2：
-
-```python
-from enum import Enum
-
-class Status(str, Enum):
-    ACTIVE = "激活"
-    INACTIVE = "未激活"
-
-class User(BaseModel):
-    status: Status  # 只能是 ACTIVE 或 INACTIVE
-```
-
-举例3：
-
-```python
-from enum import Enum
-from typing import Optional
-from pydantic import BaseModel, Field
-
-# 定义你的优先级枚举类
-class Priority(str, Enum):
-    LOW = "低"
-    MEDIUM = "中"
-    HIGH = "高"
-
-class CustomerInfo(BaseModel):
-    """客户信息"""
-    name: str = Field(description="客户姓名")
-    phone: str = Field(description="电话号码")
-    email: Optional[str] = Field(description="邮箱")
-    issue: str = Field(description="问题描述")
-    urgency: Priority = Field(description="紧急程度")
-
-# 测试
-structured_llm = model_with_openrouter.with_structured_output(CustomerInfo)
-
-conversation = """
-客服: 您好，请问有什么可以帮助您？
-客户: 我是王小明，电话 138-1234-5678，我的订单一直没发货，很着急！
-客服: 好的，我帮您查一下
-"""
-
-result = structured_llm.invoke(f"从以下客服对话中提取客户信息：\n{conversation}")
-
-print(result)
-
-print("\n提取结果：")
-print(f"  客户: {result.name}")
-print(f"  电话: {result.phone}")
-print(f"  邮箱: {result.email or '未提供'}")
-print(f"  问题: {result.issue}")
-print(f"  紧急程度: {result.urgency.value}")
-```
-
-```text
-name='王小明' phone='138-1234-5678' email=None issue='订单一直没发货，很着急'urgency=<Priority.HIGH: '高'>
-
-提取结果：
- 客户: 王小明
- 电话: 138-1234-5678
- 邮箱: 未提供
- 问题: 订单一直没发货，很着急
- 紧急程度: 高
-```
-
-如果嫌单独定义一个 Enum 类太麻烦，也可以直接导入 typing 中的 Literal ，直接在字段里把允许的值写死。
-
-```python
-from typing import Optional, Literal
-from pydantic import BaseModel, Field
-
-class CustomerInfo(BaseModel):
-    """客户信息"""
-    name: str = Field(description="客户姓名")
-    phone: str = Field(description="电话号码")
-    email: Optional[str] = Field("未提供", description="邮箱")
-    issue: str = Field(description="问题描述")
-    # 使用 Literal 直接限定字面量值
-    urgency: Literal["低","中","高"] = Field(description="紧急程度")
-
-# 测试
-structured_llm = model_with_openrouter.with_structured_output(CustomerInfo)
-
-conversation = """
-客服: 您好，请问有什么可以帮助您？
-客户: 我是王小明，电话 138-1234-5678，我的订单一直没发货，很着急！
-客服: 好的，我帮您查一下
-"""
-
-result = structured_llm.invoke(f"从以下客服对话中提取客户信息：\n{conversation}")
-
-print(result)
-
-print("\n提取结果：")
-print(f"  客户: {result.name}")
-print(f"  电话: {result.phone}")
-print(f"  邮箱: {result.email}")
-print(f"  问题: {result.issue}")
-print(f"  紧急程度: {result.urgency}")
-```
-
-```text
-name='王小明' phone='138-1234-5678' email='未提供' issue='订单一直没发货，很着急' urgency='高'
-
-提取结果：
- 客户: 王小明
- 电话: 138-1234-5678
- 邮箱: 未提供
- 问题: 订单一直没发货，很着急
- 紧急程度: 高
-```
-
-应用场景：
-
-- 自动填充 CRM 系统
-
-- 工单自动分类
-
-- 客服辅助
-
-##### 情况4：列表提取
-
-举例1：
-
-```python
-from typing import List
-
-class Person(BaseModel):
-    """人物信息"""
-    name: str
-    age: int
-
-class PersonList(BaseModel):
-    """人物列表信息"""
-    people: List[Person]  # 多个 Person 对象
-
-structured_llm = model.with_structured_output(PersonList)
-result = structured_llm.invoke("张三 30岁，李四 25岁")
-
-print(result)
-```
-
-```text
-people=[Person(name='张三', age=30), Person(name='李四', age=25)]
-```
-
-举例2：产品评论分析
-
-```python
-class Review(BaseModel):
-    """产品评论"""
-    product: str
-    rating: int = Field(description="评分 1-5")
-    pros: List[str] = Field(description="优点列表")
-    cons: List[str] = Field(description="缺点列表")
-
-structured_llm = model.with_structured_output(Review)
-
-review = structured_llm.invoke("""
-iPhone 17 很棒！摄像头强大，手感好。但是价格贵，没有充电器。4分。
-""")
-
-print(review)
-```
-
-```text
-product='iPhone 17' rating=4 pros=['摄像头强大', '手感好'] cons=['价格贵','没有充电器']
-```
-
-应用场景：
-
-- 批量处理用户评论
-
-- 自动生成分析报告
-
-- 发现产品改进点
-
-举例3：文档信息提取
-
-```python
-class Invoice(BaseModel):
-    """发票信息"""
-    invoice_number: str = Field(description="发票号")
-    date: str = Field(description="日期")
-    total_amount: float = Field(description="总金额")
-    items: List[str] = Field(description="商品")
-
-# 测试
-structured_llm = model.with_structured_output(Invoice)
-
-invoice_text = """
-发票号: INV-2024-001
-日期: 2024-01-15
-总金额: 1299.00
-商品: MacBook Pro, AppleCare+
-"""
-
-invoice = structured_llm.invoke(f"提取发票信息：{invoice_text}")
-print(invoice)
-```
-
-```text
-invoice_number='INV-2024-001' date='2024-01-15' total_amount=1299.0items=['MacBook Pro', 'AppleCare+']
-```
-
-应用场景：
-
-- 自动化财务处理
-
-- OCR 后结构化
-
-- 数据录入
-
-##### 情况5：嵌套结构
-
-举例1：
-
-```python
-from pydantic import BaseModel
-
-class Address(BaseModel):
-    """地点描述"""
-    city: str
-    district: str
-
-class Company(BaseModel):
-    """公司信息"""
-    name: str
-    address: Address  # 嵌套模型
-
-structured_llm = model.with_structured_output(Company)
-
-result = structured_llm.invoke("阿里巴巴在杭州滨江区")
-
-print(result)
-```
-
-```text
-name='阿里巴巴' address=Address(city='杭州', district='滨江区')
-```
-
-举例2：
-
-```python
-from pydantic import BaseModel, Field
-from typing import List
-
-# 1. 定义嵌套的 Pydantic 模型
-class Actor(BaseModel):
-    """演员信息"""
-    name: str = Field(description="演员姓名")
-    role: str = Field(description="饰演的角色")
-
-class Movie(BaseModel):
-    """电影信息"""
-    title: str = Field(description="电影标题")
-    year: int = Field(description="上映年份")
-    director: str = Field(description="导演")
-    cast: List[Actor] = Field(description="演员列表")  # 定义列表字段
-    rating: float = Field(description="评分")
-
-# 2. 初始化模型并绑定输出结构
-structured_model = model.with_structured_output(Movie)
-
-# 3. 调用模型，直接获取 Movie 实例
-response = structured_model.invoke("请介绍电影《盗梦空间》")
-
-# 4. 访问嵌套数据
-print(f"电影名: {response.title}")
-print(f"上映年份: {response.year}")
-print(f"导演: {response.director}")
-print(f"演员列表: {response.cast}")
-print(f"评分: {response.rating}")
-```
-
-以上代码输出结果如下：
-
-```python
-电影名: 盗梦空间
-上映年份: 2010
-导演: 克里斯托弗·诺兰
-演员列表: [Actor(name='莱昂纳多·迪卡普里奥', role='柯布'), Actor(name='约瑟夫·高登-莱维特', role='亚瑟'), Actor(name='艾伦·佩吉', role='阿里阿德涅'),Actor(name='汤姆·哈迪', role='艾姆斯'), Actor(name='渡边谦', role='斋藤'),Actor(name='玛丽昂·歌迪亚', role='梅尔')]
-评分: 8.8
-```
-
-说明：LLM 能力有限，复杂嵌套结构可能会出错。所以建议：
-
-- 嵌套层级 ≤ 3 层
-
-```python
-class Bad(BaseModel):
-    user: User
-        company: Company
-            address: Address
-                country: Country  # 4 层嵌套，容易出错
-```
-
-- 使用清晰的 description
-
-- 必要时拆分成多个调用
-
-举例3：
-
-```python
-from pydantic import BaseModel
-from typing import List
-
-class Aspect(BaseModel):
-    """评论维度"""
-    name: str = Field(description="维度名称，如：质量、价格、服务")
-    score: int = Field(description="评分，1-5")
-    comment: str = Field(description="具体评价")
-
-class ProductReview(BaseModel):
-    """产品评论分析"""
-    overall_sentiment: str = Field(description="整体情感：positive/negative/neutral")
-    overall_score: int = Field(description="综合评分，1-5")
-    aspects: List[Aspect] = Field(description="各维度评价")
-    summary: str = Field(description="一句话总结")
-
-# 创建结构化模型
-structured_model = model.with_structured_output(ProductReview)
-# 测试
-review_text = """
-这款笔记本电脑性能非常强大，运行大型软件毫无压力。
-屏幕色彩鲜艳，看视频很舒服。
-不过价格有点贵，而且风扇噪音较大。
-客服态度很好，物流也快。
-总体来说还是值得购买的。
-"""
-
-result = structured_model.invoke(
-    f"分析以下产品评论：\n{review_text}"
-)
-
-print(f"整体情感: {result.overall_sentiment}")
-print(f"综合评分: {result.overall_score}/5")
-print(f"\n各维度评价:")
-for aspect in result.aspects:
-    print(f"  - {aspect.name}: {aspect.score}/5 - {aspect.comment}")
-print(f"\n总结: {result.summary}")
-```
-
-```text
-整体情感: positive
-综合评分: 4/5
-
-各维度评价:
-  - 性能: 5/5 - 性能非常强大，运行大型软件毫无压力。
-  - 屏幕: 5/5 - 屏幕色彩鲜艳，看视频很舒服。
-  - 价格: 2/5 - 价格有点贵，性价比略受影响。
-  - 噪音: 2/5 - 风扇噪音较大，影响使用体验。
-  - 服务: 5/5 - 客服态度很好，物流也快。
-
-总结: 整体表现优秀，性能和屏幕突出，服务也好，但价格偏高且风扇噪音较大。
-```
-
-##### 情况6：限制条件
-
-举例1：
-
-```python
-from pydantic import ValidationError
-
-class User(BaseModel):
-    name: str = Field(min_length=2, max_length=20)
-    age: int = Field(ge=0, le=150)
-    email: str
-
-print("\n有效数据:")
-try:
-    user = User(name="张三", age=30, email="zhang@example.com")
-    print(f"[OK] {user.name}, {user.age}, {user.email}")
-except ValidationError as e:
-    print(f"[FAIL] {e}")
-
-print("\n无效数据（年龄超出范围）:")
-try:
-    user = User(name="李四", age=200, email="li@example.com")
-    print(f"[OK] {user}")
-except ValidationError as e:
-    print(f"[FAIL] 验证失败（符合预期）: {e.errors()[0]['msg']}")
-```
-
-```text
-有效数据:
-[OK] 张三, 30, zhang@example.com
-
-无效数据（年龄超出范围）:
-[FAIL] 验证失败（符合预期）: Input should be less than or equal to 150
-```
-
-举例2：
-
-使用CloseAI平台模型
-
-```python
-class Product(BaseModel):
-    """产品信息（严格验证）"""
-    name: str = Field(description="产品名称（字符串类型）", min_length=2)
-    price: float = Field(description="价格，数字类型", gt=0)
-    stock: int = Field(description="库存，整数类型", ge=0)
-
-# 测试
-structured_llm = model_with_closeai.with_structured_output(Product)
-
-# response = structured_llm.invoke("华为mate 80 promax 价格是7999，当前库存100")
-response = structured_llm.invoke("华为mate 80 promax 价格是-7999，当前库存-100")
-print(response)
-```
-
-```text
-name='华为mate 80 promax' price=7999.0 stock=100
-```
-
-使用OpenRouter平台模型
-
-```python
-class Product(BaseModel):
-    """产品信息（严格验证）"""
-    name: str = Field(description="产品名称（字符串类型）", min_length=2)
-    price: float = Field(description="价格，数字类型", gt=0)
-    stock: int = Field(description="库存，整数类型", ge=0)
-
-# 测试
-structured_llm = model_with_openrouter.with_structured_output(Product)
-
-# response = structured_llm.invoke("华为mate 80 promax 价格是7999，当前库存100")
-response = structured_llm.invoke("华为mate 80 promax 价格是-7999，当前库存-100")
-print(response)
-```
-
-```text
-name='华为mate 80 promax' price=1.0 stock=0
-```
-
-#### 
-
-
-
-
-
-
+    - 
+
+
+
+      ```python
+      Person(name='张三', age=0, occupation='医生')
+      ```
+
+      作为对比：
+
+      ```python
+      from typing import Optional
+      from pydantic import BaseModel, Field
+      
+      class Person(BaseModel):
+          """人物信息"""
+          name: str = Field(description="姓名")
+          age: int = Field(1,description="年龄")
+          occupation: str = Field(description="职业")
+      
+      structured_llm = model_with_openrouter.with_structured_output(Person)
+      
+      structured_llm.invoke("张三是一名医生")
+      ```
+
+      ```python
+      Person(name='张三', age=1, occupation='医生')
+      ```
+
+      举例2：
+
+      ```python
+      class Config(BaseModel):
+          timeout: Optional[int] = Field(30,description="超时时间(单位秒)")
+          retry: bool = Field(False,description="是否支持重试")
+          max_attempts: int = Field(6,description="最大重试次数")
+      
+      # 测试
+      structured_llm = model_with_closeai.with_structured_output(Config)
+      structured_llm.invoke("配置要求：支持重试,最多重试5次")
+      ```
+
+      ```python
+      Config(timeout=None, retry=True, max_attempts=5)
+      ```
+
+      作为对比：
+
+      ```python
+      class Config(BaseModel):
+          timeout: Optional[int] = Field(30,description="超时时间(单位秒)")
+          retry: bool = Field(False,description="是否支持重试")
+          max_attempts: int = Field(6,description="最大重试次数")
+      
+      # 测试
+      structured_llm = model_with_openrouter.with_structured_output(Config)
+      structured_llm.invoke("配置要求：支持重试,最多重试5次")
+      ```
+
+      ```python
+      Config(timeout=None, retry=True, max_attempts=5)
+      ```
+
+      举例3：
+
+      ```python
+      from typing import Optional
+      from pydantic import BaseModel, Field
+      
+      class Product(BaseModel):
+          """产品信息"""
+          name: str = Field(description="产品名称")
+          price: float = Field(description="价格")
+          description: Optional[str] = Field(description="产品描述")
+          stock: int = Field(default=100, description="库存")
+      
+      # 测试
+      structured_llm = model_with_openrouter.with_structured_output(Product)
+      print("\n场景1：完整信息")
+      result1 = structured_llm.invoke("iPhone 15 售价 5999 元，最新款智能手机，库存 50台")
+      print(result1)
+      
+      print("\n场景2：缺少描述和库存")
+      result2 = structured_llm.invoke("MacBook Pro 售价 12999 元")
+      print(result2)
+      ```
+
+      ```python
+      场景1：完整信息
+      name='iPhone 15' price=5999.0 description='最新款智能手机' stock=50
+      
+      场景2：缺少描述和库存
+      name='MacBook Pro' price=12999.0 description=None stock=100
+      ```
+
+      ##### 情况3：枚举类型
+
+      问题：如何限制字段的可选值？
+
+      回答：使用枚举。
+
+      举例1：
+
+      ```python
+      from enum import Enum
+      
+      class Priority(str, Enum):
+          LOW = "低"
+          MEDIUM = "中"
+          HIGH = "高"
+      
+      class Task(BaseModel):
+          title: str
+          priority: Priority  # 只能是 LOW/MEDIUM/HIGH
+      ```
+
+      举例2：
+
+      ```python
+      from enum import Enum
+      
+      class Status(str, Enum):
+          ACTIVE = "激活"
+          INACTIVE = "未激活"
+      
+      class User(BaseModel):
+          status: Status  # 只能是 ACTIVE 或 INACTIVE
+      ```
+
+      举例3：
+
+      ```python
+      from enum import Enum
+      from typing import Optional
+      from pydantic import BaseModel, Field
+      
+      # 定义你的优先级枚举类
+      class Priority(str, Enum):
+          LOW = "低"
+          MEDIUM = "中"
+          HIGH = "高"
+      
+      class CustomerInfo(BaseModel):
+          """客户信息"""
+          name: str = Field(description="客户姓名")
+          phone: str = Field(description="电话号码")
+          email: Optional[str] = Field(description="邮箱")
+          issue: str = Field(description="问题描述")
+          urgency: Priority = Field(description="紧急程度")
+      
+      # 测试
+      structured_llm = model_with_openrouter.with_structured_output(CustomerInfo)
+      
+      conversation = """
+      客服: 您好，请问有什么可以帮助您？
+      客户: 我是王小明，电话 138-1234-5678，我的订单一直没发货，很着急！
+      客服: 好的，我帮您查一下
+      """
+      
+      result = structured_llm.invoke(f"从以下客服对话中提取客户信息：\n{conversation}")
+      
+      print(result)
+      
+      print("\n提取结果：")
+      print(f"  客户: {result.name}")
+      print(f"  电话: {result.phone}")
+      print(f"  邮箱: {result.email or '未提供'}")
+      print(f"  问题: {result.issue}")
+      print(f"  紧急程度: {result.urgency.value}")
+      ```
+
+      ```text
+      name='王小明' phone='138-1234-5678' email=None issue='订单一直没发货，很着急'urgency=<Priority.HIGH: '高'>
+      
+      提取结果：
+       客户: 王小明
+       电话: 138-1234-5678
+       邮箱: 未提供
+       问题: 订单一直没发货，很着急
+       紧急程度: 高
+      ```
+
+      如果嫌单独定义一个 `Enum` 类太麻烦，也可以直接导入 `typing` 中的 `Literal` ，直接在字段里把允许的值写死。
+
+      ```python
+      from typing import Optional, Literal
+      from pydantic import BaseModel, Field
+      
+      class CustomerInfo(BaseModel):
+          """客户信息"""
+          name: str = Field(description="客户姓名")
+          phone: str = Field(description="电话号码")
+          email: Optional[str] = Field("未提供", description="邮箱")
+          issue: str = Field(description="问题描述")
+          # 使用 Literal 直接限定字面量值
+          urgency: Literal["低","中","高"] = Field(description="紧急程度")
+      
+      # 测试
+      structured_llm = model_with_openrouter.with_structured_output(CustomerInfo)
+      
+      conversation = """
+      客服: 您好，请问有什么可以帮助您？
+      客户: 我是王小明，电话 138-1234-5678，我的订单一直没发货，很着急！
+      客服: 好的，我帮您查一下
+      """
+      
+      result = structured_llm.invoke(f"从以下客服对话中提取客户信息：\n{conversation}")
+      
+      print(result)
+      
+      print("\n提取结果：")
+      print(f"  客户: {result.name}")
+      print(f"  电话: {result.phone}")
+      print(f"  邮箱: {result.email}")
+      print(f"  问题: {result.issue}")
+      print(f"  紧急程度: {result.urgency}")
+      ```
+
+      ```text
+      name='王小明' phone='138-1234-5678' email='未提供' issue='订单一直没发货，很着急' urgency='高'
+      
+      提取结果：
+       客户: 王小明
+       电话: 138-1234-5678
+       邮箱: 未提供
+       问题: 订单一直没发货，很着急
+       紧急程度: 高
+      ```
+
+      应用场景：
+
+      - 自动填充 CRM 系统
+      - 工单自动分类
+      - 客服辅助
+
+      ##### 情况4：列表提取
+
+      举例1：
+
+      ```python
+      from typing import List
+      
+      class Person(BaseModel):
+          """人物信息"""
+          name: str
+          age: int
+      
+      class PersonList(BaseModel):
+          """人物列表信息"""
+          people: List[Person]  # 多个 Person 对象
+      
+      structured_llm = model.with_structured_output(PersonList)
+      result = structured_llm.invoke("张三 30岁，李四 25岁")
+      
+      print(result)
+      ```
+
+      ```text
+      people=[Person(name='张三', age=30), Person(name='李四', age=25)]
+      ```
+
+      举例2：产品评论分析
+
+      ```python
+      class Review(BaseModel):
+          """产品评论"""
+          product: str
+          rating: int = Field(description="评分 1-5")
+          pros: List[str] = Field(description="优点列表")
+          cons: List[str] = Field(description="缺点列表")
+      
+      structured_llm = model.with_structured_output(Review)
+      
+      review = structured_llm.invoke("""
+      iPhone 17 很棒！摄像头强大，手感好。但是价格贵，没有充电器。4分。
+      """)
+      
+      print(review)
+      ```
+
+      ```text
+      product='iPhone 17' rating=4 pros=['摄像头强大', '手感好'] cons=['价格贵','没有充电器']
+      ```
+
+      应用场景：
+
+      - 批量处理用户评论
+      - 自动生成分析报告
+      - 发现产品改进点
+
+      举例3：文档信息提取
+
+      ```python
+      class Invoice(BaseModel):
+          """发票信息"""
+          invoice_number: str = Field(description="发票号")
+          date: str = Field(description="日期")
+          total_amount: float = Field(description="总金额")
+          items: List[str] = Field(description="商品")
+      
+      # 测试
+      structured_llm = model.with_structured_output(Invoice)
+      
+      invoice_text = """
+      发票号: INV-2024-001
+      日期: 2024-01-15
+      总金额: 1299.00
+      商品: MacBook Pro, AppleCare+
+      """
+      
+      invoice = structured_llm.invoke(f"提取发票信息：{invoice_text}")
+      print(invoice)
+      ```
+
+      ```text
+      invoice_number='INV-2024-001' date='2024-01-15' total_amount=1299.0items=['MacBook Pro', 'AppleCare+']
+      ```
+
+      应用场景：
+
+      - 自动化财务处理
+      - OCR 后结构化
+      - 数据录入
+
+      ##### 情况5：嵌套结构
+
+      举例1：
+
+      ```python
+      from pydantic import BaseModel
+      
+      class Address(BaseModel):
+          """地点描述"""
+          city: str
+          district: str
+      
+      class Company(BaseModel):
+          """公司信息"""
+          name: str
+          address: Address  # 嵌套模型
+      
+      structured_llm = model.with_structured_output(Company)
+      
+      result = structured_llm.invoke("阿里巴巴在杭州滨江区")
+      
+      print(result)
+      ```
+
+      ```text
+      name='阿里巴巴' address=Address(city='杭州', district='滨江区')
+      ```
+
+      举例2：
+
+      ```python
+      from pydantic import BaseModel, Field
+      from typing import List
+      
+      # 1. 定义嵌套的 Pydantic 模型
+      class Actor(BaseModel):
+          """演员信息"""
+          name: str = Field(description="演员姓名")
+          role: str = Field(description="饰演的角色")
+      
+      class Movie(BaseModel):
+          """电影信息"""
+          title: str = Field(description="电影标题")
+          year: int = Field(description="上映年份")
+          director: str = Field(description="导演")
+          cast: List[Actor] = Field(description="演员列表")  # 定义列表字段
+          rating: float = Field(description="评分")
+      
+      # 2. 初始化模型并绑定输出结构
+      structured_model = model.with_structured_output(Movie)
+      
+      # 3. 调用模型，直接获取 Movie 实例
+      response = structured_model.invoke("请介绍电影《盗梦空间》")
+      
+      # 4. 访问嵌套数据
+      print(f"电影名: {response.title}")
+      print(f"上映年份: {response.year}")
+      print(f"导演: {response.director}")
+      print(f"演员列表: {response.cast}")
+      print(f"评分: {response.rating}")
+      ```
+
+      以上代码输出结果如下：
+
+      ```python
+      电影名: 盗梦空间
+      上映年份: 2010
+      导演: 克里斯托弗·诺兰
+      演员列表: [Actor(name='莱昂纳多·迪卡普里奥', role='柯布'), Actor(name='约瑟夫·高登-莱维特', role='亚瑟'), Actor(name='艾伦·佩吉', role='阿里阿德涅'),Actor(name='汤姆·哈迪', role='艾姆斯'), Actor(name='渡边谦', role='斋藤'),Actor(name='玛丽昂·歌迪亚', role='梅尔')]
+      评分: 8.8
+      ```
+
+      说明：LLM 能力有限，复杂嵌套结构可能会出错。所以建议：
+
+      - 嵌套层级 ≤ 3 层
+
+      ```python
+      class Bad(BaseModel):
+          user: User
+              company: Company
+                  address: Address
+                      country: Country  # 4 层嵌套，容易出错
+      ```
+
+      - 使用清晰的 description
+      - 必要时拆分成多个调用
+
+      举例3：
+
+      ```python
+      from pydantic import BaseModel
+      from typing import List
+      
+      class Aspect(BaseModel):
+          """评论维度"""
+          name: str = Field(description="维度名称，如：质量、价格、服务")
+          score: int = Field(description="评分，1-5")
+          comment: str = Field(description="具体评价")
+      
+      class ProductReview(BaseModel):
+          """产品评论分析"""
+          overall_sentiment: str = Field(description="整体情感：positive/negative/neutral")
+          overall_score: int = Field(description="综合评分，1-5")
+          aspects: List[Aspect] = Field(description="各维度评价")
+          summary: str = Field(description="一句话总结")
+      
+      # 创建结构化模型
+      structured_model = model.with_structured_output(ProductReview)
+      # 测试
+      review_text = """
+      这款笔记本电脑性能非常强大，运行大型软件毫无压力。
+      屏幕色彩鲜艳，看视频很舒服。
+      不过价格有点贵，而且风扇噪音较大。
+      客服态度很好，物流也快。
+      总体来说还是值得购买的。
+      """
+      
+      result = structured_model.invoke(
+          f"分析以下产品评论：\n{review_text}"
+      )
+      
+      print(f"整体情感: {result.overall_sentiment}")
+      print(f"综合评分: {result.overall_score}/5")
+      print(f"\n各维度评价:")
+      for aspect in result.aspects:
+          print(f"  - {aspect.name}: {aspect.score}/5 - {aspect.comment}")
+      print(f"\n总结: {result.summary}")
+      ```
+
+      ```text
+      整体情感: positive
+      综合评分: 4/5
+      
+      各维度评价:
+        - 性能: 5/5 - 性能非常强大，运行大型软件毫无压力。
+        - 屏幕: 5/5 - 屏幕色彩鲜艳，看视频很舒服。
+        - 价格: 2/5 - 价格有点贵，性价比略受影响。
+        - 噪音: 2/5 - 风扇噪音较大，影响使用体验。
+        - 服务: 5/5 - 客服态度很好，物流也快。
+      
+      总结: 整体表现优秀，性能和屏幕突出，服务也好，但价格偏高且风扇噪音较大。
+      ```
+
+      ##### 情况6：限制条件
+
+      举例1：
+
+      ```python
+      from pydantic import ValidationError
+      
+      class User(BaseModel):
+          name: str = Field(min_length=2, max_length=20)
+          age: int = Field(ge=0, le=150)
+          email: str
+      
+      print("\n有效数据:")
+      try:
+          user = User(name="张三", age=30, email="zhang@example.com")
+          print(f"[OK] {user.name}, {user.age}, {user.email}")
+      except ValidationError as e:
+          print(f"[FAIL] {e}")
+      
+      print("\n无效数据（年龄超出范围）:")
+      try:
+          user = User(name="李四", age=200, email="li@example.com")
+          print(f"[OK] {user}")
+      except ValidationError as e:
+          print(f"[FAIL] 验证失败（符合预期）: {e.errors()[0]['msg']}")
+      ```
+
+      ```text
+      有效数据:
+      [OK] 张三, 30, zhang@example.com
+      
+      无效数据（年龄超出范围）:
+      [FAIL] 验证失败（符合预期）: Input should be less than or equal to 150
+      ```
+
+      举例2：
+
+      使用CloseAI平台模型
+
+      ```python
+      class Product(BaseModel):
+          """产品信息（严格验证）"""
+          name: str = Field(description="产品名称（字符串类型）", min_length=2)
+          price: float = Field(description="价格，数字类型", gt=0)
+          stock: int = Field(description="库存，整数类型", ge=0)
+      
+      # 测试
+      structured_llm = model_with_closeai.with_structured_output(Product)
+      
+      # response = structured_llm.invoke("华为mate 80 promax 价格是7999，当前库存100")
+      response = structured_llm.invoke("华为mate 80 promax 价格是-7999，当前库存-100")
+      print(response)
+      ```
+
+      ```text
+      name='华为mate 80 promax' price=7999.0 stock=100
+      ```
+
+      使用OpenRouter平台模型
+
+      ```python
+      class Product(BaseModel):
+          """产品信息（严格验证）"""
+          name: str = Field(description="产品名称（字符串类型）", min_length=2)
+          price: float = Field(description="价格，数字类型", gt=0)
+          stock: int = Field(description="库存，整数类型", ge=0)
+      
+      # 测试
+      structured_llm = model_with_openrouter.with_structured_output(Product)
+      
+      # response = structured_llm.invoke("华为mate 80 promax 价格是7999，当前库存100")
+      response = structured_llm.invoke("华为mate 80 promax 价格是-7999，当前库存-100")
+      print(response)
+      ```
+
+      ```text
+      name='华为mate 80 promax' price=1.0 stock=0
+      ```
+
+      #### 
 
 
 
@@ -6620,7 +8411,7 @@ result = agent.invoke({
 
 
 
-## 2、Agent 的基本用法1
+## 2、模型的传入方式
 
 - Agent 的基本用法1：<font color="red">**模型的传入方式**</font>
 - 在 LangChain1.2 中，create_agent是构建智能体的核心方式，底层基于 LangGraph 实现。
@@ -6644,3 +8435,2859 @@ agent = create_agent(
 
 - Agent 在创建时，涉及到**模型 (Agent 使用的模型)**、**可调用工具**、**系统提示词**等参数的设置。
   - 更多参数参考： https://reference.langchain.com/python/langchain/agents/factory/create_agent
+
+
+
+### 2.1 传入模型字符串
+
+- .env
+
+~~~bash
+OPENAI_API_KEY=XXXXXX
+~~~
+
+- Agent根据传入的模型字符串，自主创建模型对象
+
+```python
+from langchain.agents import create_agent
+
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
+
+agent = create_agent("openai:deepseek-v4.1-flash")
+print(type(agent))
+
+from IPython.display import Image, display
+display(Image(agent.get_graph().draw_mermaid_png()))
+```
+
+- 输出
+
+```text
+<class 'langgraph.graph.state.CompiledStateGraph'>
+```
+
+![第5页图片](图片/page-05-image-01.png)
+
+- 由上可知，agent本质上是LangGraph的CompiledStateGraph实例，底层实现是一个图结构。
+
+- 通过上述代码最后一行可以看到agent的图结构。
+
+
+
+### 2.2 传入模型对象
+
+```python
+from langchain.chat_models import init_chat_model
+from langchain.agents import create_agent
+from dotenv import load_dotenv
+import os
+load_dotenv(override=True)
+
+# 以ChatDeepSeek为例
+# model = ChatDeepSeek(model="deepseek-v4-flash")
+
+# 以init_chat_model为例
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+agent = create_agent(model)
+
+print(type(agent))
+
+from IPython.display import Image, display
+display(Image(agent.get_graph().draw_mermaid_png()))
+```
+
+输出同上
+
+```text
+<class 'langgraph.graph.state.CompiledStateGraph'>
+```
+
+![第6页图片](图片/page-06-image-01.png)
+
+
+
+## 3、如何调用Agent
+
+- agent.invoke() 是Agent 最基本的同步调用方法，它会阻塞程序执行直到返回最终结果。具体的：
+  - 输入：<font color="red">**传入的参数为字典类型**</font>，字典内通过messages字段传递消息列表。即：“ {"messages":[{"role": "...", "content": "..."}]} ”
+  - 输出：通过invoke调用Agent，底层可能会经历多轮交互，<font color="red">**返回的是完整的消息列表，被封装在字典中，是messages字段的值。**</font>
+
+```python
+response = agent.invoke({"messages": [...]})
+
+# response 是字典类型
+{
+    "messages": [
+        HumanMessage(...),       # 用户问题
+        AIMessage(...),          # AI 工具调用
+        ToolMessage(...),        # 工具返回结果
+        AIMessage(...)           # 最终回答 ← 通常取这个
+    ]
+}
+
+# 获取最终回答
+final_answer = response['messages'][-1].content
+```
+
+- 举例1：
+
+```python
+from langchain.chat_models import init_chat_model
+from langchain.agents import create_agent
+from dotenv import load_dotenv
+import os
+load_dotenv(override=True)
+from rich import print as rprint
+
+# 以init_chat_model为例
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+agent = create_agent(model=model)
+
+response = agent.invoke({"messages": ["你好"]}) # 默认是HumanMessage
+print(type(response))
+rprint(response)
+```
+
+- 输出如下
+
+```json
+<class 'dict'>
+{
+    'messages': [
+        HumanMessage(
+            content='你好',
+            additional_kwargs={},
+            response_metadata={},
+            id='1cc97ea9-1c1d-41f2-a5c4-459ef59423c4'
+        ),
+        AIMessage(
+            content='你好！很高兴见到你，有什么我可以帮你的吗？😊',
+            additional_kwargs={'refusal': None},
+            response_metadata={
+                'token_usage': {
+                    'completion_tokens': 88,
+                    'prompt_tokens': 31,
+                    'total_tokens': 119,
+                    'completion_tokens_details': {
+                        'accepted_prediction_tokens': None,
+                        'audio_tokens': None,
+                        'reasoning_tokens': 72,
+                        'rejected_prediction_tokens': None
+                    },
+                    'prompt_tokens_details': None
+                },
+                'model_provider': 'openai',
+                'model_name': 'deepseek-v4.1-flash',
+                'system_fingerprint': None,
+                'id': 'chatcmpl-130fa8a8',
+                'finish_reason': 'stop',
+                'logprobs': None
+            },
+            id='lc_run--01a1250a-633b-7c83-a57a-26d0d5ac7423-0',
+            tool_calls=[],
+            invalid_tool_calls=[],
+            usage_metadata={
+                'input_tokens': 31,
+                'output_tokens': 88,
+                'total_tokens': 119,
+                'input_token_details': {},
+                'output_token_details': {'reasoning': 72}
+            }
+        )
+    ]
+}
+```
+
+- 举例2：invoke调用的核心就是输入一系列消息（messages），每条消息通常包含 role（如 "user", "assistant","system", "tool"）和 "content"。
+
+- 我们也可以在message列表的开头加入"system"角色的消息来定义Agent的行为。
+
+```python
+from langchain.chat_models import init_chat_model
+from langchain.agents import create_agent
+from dotenv import load_dotenv
+import os
+load_dotenv(override=True)
+from rich import print as rprint
+
+# 以init_chat_model为例
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+agent = create_agent(model)
+
+resp = agent.invoke({
+    "messages": [
+        {"role": "system", "content": "你是一个小学数学老师，耐心，幽默，讲解深入浅出"},
+        {"role": "user", "content": "100加上50等于多少？"}
+    ]
+})
+
+rprint(resp)
+```
+
+- 返回输出
+
+~~~json
+{
+    'messages': [
+        SystemMessage(
+            content='你是一个小学数学老师，耐心，幽默，讲解深入浅出',
+            additional_kwargs={},
+            response_metadata={},
+            id='3aae0fc6-275e-431b-b174-364d6dc3bbdd'
+        ),
+        HumanMessage(
+            content='100加上50等于多少？',
+            additional_kwargs={},
+            response_metadata={},
+            id='3be94465-18df-4e43-834f-58741477a16e'
+        ),
+        AIMessage(
+            content='100 加上 50 等于 **150**。\n\n你可以这样想：  \n100 是 1 
+个百，50 是 5 个十，合起来就是 **1 个百 5 个十**，也就是 **150**。😊',
+            additional_kwargs={'refusal': None},
+            response_metadata={
+                'token_usage': {
+                    'completion_tokens': 123,
+                    'prompt_tokens': 49,
+                    'total_tokens': 172,
+                    'completion_tokens_details': {
+                        'accepted_prediction_tokens': None,
+                        'audio_tokens': None,
+                        'reasoning_tokens': 65,
+                        'rejected_prediction_tokens': None
+                    },
+                    'prompt_tokens_details': None
+                },
+                'model_provider': 'openai',
+                'model_name': 'deepseek-v4.1-flash',
+                'system_fingerprint': None,
+                'id': 'chatcmpl-0071f1f4',
+                'finish_reason': 'stop',
+                'logprobs': None
+            },
+            id='lc_run--01a1250b-aab4-7ad3-a279-4272f5d64a1f-0',
+            tool_calls=[],
+            invalid_tool_calls=[],
+            usage_metadata={
+                'input_tokens': 49,
+                'output_tokens': 123,
+                'total_tokens': 172,
+                'input_token_details': {},
+                'output_token_details': {'reasoning': 65}
+            }
+        )
+    ]
+}
+~~~
+
+
+
+## 4、绑定工具
+
+- 只有接入了一些工具，create_agent完成Agent创建才算完整。
+
+- Agent支持静态和动态绑定工具，后者需要用到中间件，后面会讲。在执行时：
+
+![第10页图片](图片/page-10-image-01.png)
+
+- 这里的工具可以是LangChain内置的，也可以是自定义的。LangChain生态中已经内置集成了非常多的实用工具，开发者可以快速调用这些工具完成更加复杂工作流的开发。
+
+- LangChain内置工具列表：<https://docs.langchain.com/oss/python/integrations/tools>
+
+- 其中典型的工具如下：
+
+![第11页图片](图片/page-11-image-01.png)
+
+
+
+### 4.1 基本用法
+
+#### 4.1.1 绑定一个工具
+
+- 调用查询天气工具进行天气查询
+
+~~~python
+from langchain.chat_models import init_chat_model
+from langchain.agents import create_agent
+from dotenv import load_dotenv
+import os
+
+from langchain_core.tools import tool
+
+load_dotenv(override=True)
+from rich import print as rprint
+
+# 以init_chat_model为例
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider="openai",
+    api_key=os.getenv("CHAT_API_KEY"),
+    base_url=os.getenv("CHAT_BASE_URL")
+)
+
+# 定义工具
+@tool(parse_docstring=True)
+def get_weather(city: str) -> str:
+    """
+    天气查询工具
+
+    Args:
+        city: 城市名称
+    """
+    return f"{city}的天气为晴朗，25°C。"
+
+# 定义智能体
+agent = create_agent(
+    model=model,
+    tools=[get_weather]
+)
+
+# 执行调用
+resp = agent.invoke({
+    "messages": [
+        {"role": "system", "content": "你是一个天气查询助手，只回答天气相关的问题，其他问题请直接回答：我不清楚这问题答案。"},
+        {"role": "user", "content": "北京的天气怎么样？"}
+        # {"role": "user", "content": "100加上50等于多少？"}
+    ]
+})
+
+rprint(resp)
+~~~
+
+- 返回
+
+~~~json
+{
+    'messages': [
+        SystemMessage(
+            content='你是一个天气查询助手，只回答天气相关的问题，其他问题请直接
+回答：我不清楚这问题答案。',
+            additional_kwargs={},
+            response_metadata={},
+            id='96c0a512-69cf-4c05-b85a-bffc5d9d84e1'
+        ),
+        HumanMessage(
+            content='北京的天气怎么样？',
+            additional_kwargs={},
+            response_metadata={},
+            id='6c540324-3826-4fca-a571-7423e32d131b'
+        ),
+        AIMessage(
+            content='\n\n',
+            additional_kwargs={'refusal': None},
+            response_metadata={
+                'token_usage': {
+                    'completion_tokens': 59,
+                    'prompt_tokens': 321,
+                    'total_tokens': 380,
+                    'completion_tokens_details': {
+                        'accepted_prediction_tokens': None,
+                        'audio_tokens': None,
+                        'reasoning_tokens': 19,
+                        'rejected_prediction_tokens': None
+                    },
+                    'prompt_tokens_details': None
+                },
+                'model_provider': 'openai',
+                'model_name': 'deepseek-v4.1-flash',
+                'system_fingerprint': None,
+                'id': 'chatcmpl-cadc7852',
+                'finish_reason': 'tool_calls',
+                'logprobs': None
+            },
+            id='lc_run--01a12514-1c72-7572-a2cf-d996a9414df2-0',
+            tool_calls=[
+                {
+                    'name': 'get_weather',
+                    'args': {'city': '北京'},
+                    'id': 'call_3c0dcf49973a4d1287e166ca',
+                    'type': 'tool_call'
+                }
+            ],
+            invalid_tool_calls=[],
+            usage_metadata={
+                'input_tokens': 321,
+                'output_tokens': 59,
+                'total_tokens': 380,
+                'input_token_details': {},
+                'output_token_details': {'reasoning': 19}
+            }
+        ),
+        ToolMessage(
+            content='北京的天气为晴朗，25°C。',
+            name='get_weather',
+            id='a15a2e75-100a-4a2d-8a00-cb73d220a12c',
+            tool_call_id='call_3c0dcf49973a4d1287e166ca'
+        ),
+        AIMessage(
+            content='北京目前天气晴朗，气温25°C，比较舒适。出门可以适当注意防晒
+补水。',
+            additional_kwargs={'refusal': None},
+            response_metadata={
+                'token_usage': {
+                    'completion_tokens': 22,
+                    'prompt_tokens': 380,
+                    'total_tokens': 402,
+                    'completion_tokens_details': {
+                        'accepted_prediction_tokens': None,
+                        'audio_tokens': None,
+                        'reasoning_tokens': 0,
+                        'rejected_prediction_tokens': None
+                    },
+                    'prompt_tokens_details': None
+                },
+                'model_provider': 'openai',
+                'model_name': 'deepseek-v4.1-flash',
+                'system_fingerprint': None,
+                'id': 'chatcmpl-0551ec30',
+                'finish_reason': 'stop',
+                'logprobs': None
+            },
+            id='lc_run--01a12514-27cb-7ed2-87be-162a28344fae-0',
+            tool_calls=[],
+            invalid_tool_calls=[],
+            usage_metadata={
+                'input_tokens': 380,
+                'output_tokens': 22,
+                'total_tokens': 402,
+                'input_token_details': {},
+                'output_token_details': {'reasoning': 0}
+            }
+        )
+    ]
+}
+~~~
+
+
+
+#### 4.1.2 绑定内置工具
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 八、中间件
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 九、上下文与记忆
+
+## 1、概述
+
+
+
+### 1.1 为什么需要记忆（Memory）
+
+- <font color="red">**记忆是一种记住之前互动信息的系统。**</font>随着Agent处理涉及大量用户交互的复杂任务，记忆变得至关重要！
+
+- <font color='red'>**大多数的大模型应用程序都会有一个会话接口，允许我们进行多轮的对话，并有一定的上下文记忆能力**</font>
+
+- 但实际上，大模型本身是“无状态”的，<font color='red'>**不会记忆任何上下文的**</font>。即每次调用 agent.invoke() 都是全新的开始，不记得之前的对话。
+
+- 举例1：
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage, AIMessage
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+messages1 = [
+    HumanMessage("你好，我叫小明"),
+    AIMessage("很高兴认识你，小明"),
+    HumanMessage("你用一句话介绍下你自己"),
+]
+
+agent = create_agent(
+    model=model,
+    tools=[],
+)
+
+response1 = agent.invoke({"messages" : messages1})
+
+for msg in response1["messages"]:
+    msg.pretty_print()
+```
+
+- 返回
+
+```text
+================================ Human Message=================================
+
+你好，我叫小明
+================================== Ai Message==================================
+
+很高兴认识你，小明
+================================ Human Message=================================
+
+你用一句话介绍下你自己
+================================== Ai Message==================================
+
+我是一个可以帮助你回答问题、写作、翻译和思考的 AI 助手。
+```
+
+- 重新调用
+
+~~~python
+import os
+
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage, AIMessage
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+messages2 = [HumanMessage("我叫什么名字？")]
+
+agent = create_agent(
+    model=model,
+    tools=[],
+)
+
+response2 = agent.invoke({"messages" : messages2})
+
+for msg in response2["messages"]:
+    msg.pretty_print()
+~~~
+
+- 返回
+
+```text
+================================ Human Message =================================
+
+我叫什么名字？
+================================== Ai Message ==================================
+
+抱歉，我不知道你的名字。我们还没有相关的个人信息或对话记录。你可以告诉我你想让我怎么称呼你。
+```
+
+- 情况2：
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage, AIMessage
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+agent = create_agent(
+    model=model,
+    tools=[],
+)
+
+messages3 = [
+    HumanMessage("你好，我叫小明"),
+    AIMessage("很高兴认识你，小明"),
+    HumanMessage("你用一句话介绍下你自己"),
+    AIMessage("我是一个由 OpenAI 训练的人工智能助手，可以帮你回答问题、写作和解决各种任务。"),
+    HumanMessage("我叫什么名字？")
+]
+
+response3 = agent.invoke({"messages" : messages3})
+
+for msg in response3["messages"]:
+    msg.pretty_print()
+```
+
+```text
+================================ Human Message =================================
+
+你好，我叫小明
+================================== Ai Message ==================================
+
+很高兴认识你，小明
+================================ Human Message =================================
+
+你用一句话介绍下你自己
+================================== Ai Message ==================================
+
+我是一个由 OpenAI 训练的人工智能助手，可以帮你回答问题、写作和解决各种任务。
+================================ Human Message =================================
+
+我叫什么名字？
+================================== Ai Message ==================================
+
+你叫小明。
+```
+
+- **我们希望的智能体应该是右图的情况：**
+
+![无记忆与有记忆的智能体调用对比](图片/page-04-memory-comparison.png)
+
+
+
+### 1.2 如何解决记忆问题
+
+#### 1.2.1 上下文工程
+
+- 实现这个记忆功能，<font color='red'>**就需要额外的模块去保存我们和模型对话的上下文信息，然后在下一次请求时，把历史信息都输入给模型，让模型输出结果。**</font>
+
+- 在 LangChain 中，记忆（Memory） 就是专门负责“ 存储历史交互信息”的组件，核心作用是「保存上下文」和「提供上下文」，让LLM在每次响应时，都能“看到”之前的对话内容。
+
+- 上下文工程（Context Engineering） 负责“合理组织”这些记忆和任务信息，让LLM的响应更连贯、更贴合需求。这也是Agent能实现复杂多轮交互的核心基础。
+
+- 举例：
+
+![上下文工程筛选、压缩并传入模型的流程](图片/page-05-context-filtering.png)
+
+
+
+#### 1.2.2 上下文类型
+
+- LangChain的上下文工程是基于Agent讨论的，而上下文工程是构建在LangGraph之上的。
+
+- LangGraph 提供了三种管理上下文的方法，这些方法结合了可变性和生命周期维度：
+
+| 上下文类型                                                   | 描述                                                     | 可变性 | 生命周期 | 访问方法               |
+| ------------------------------------------------------------ | -------------------------------------------------------- | ------ | -------- | ---------------------- |
+| 动态运行时上下文（<https://docs.langchain.com/oss/python/concepts/context#dynamic-runtime-context>） | 在单次运行中会演变的可变数据                             | 动态   | 单次运行 | LangGraph state 对象   |
+| 动态跨会话上下文（<https://docs.langchain.com/oss/python/concepts/context#dynamic-cross-conversation-context>） | 在对话间共享的持久数据。比如用户偏好、历史洞察、知识条目 | 动态   | 跨对话   | LangGraph store 对象   |
+| 静态运行时上下文（<https://docs.langchain.com/oss/python/concepts/context#static-runtime-context>） | 在启动时传入的用户元数据、工具、数据库连接               | 静态   | 单次运行 | LangGraph context 对象 |
+
+
+
+### 1.3 LangChain的记忆
+
+#### 1.3.1 记忆的分类
+
+- 官方说明：<https://docs.langchain.com/oss/python/concepts/memory>
+
+- 记忆分为短期记忆和长期记忆，对应不同的使用场景：
+
+- **短期记忆（Short-term memory、会话级记忆、thread-scoped memory）**：作用范围是单个对话线程（Thread）内，一旦开启新对话（更换 thread_id），记忆即消失。
+- **长期记忆（Long-term memory，跨会话级记忆）**：在会话间存储用户特定或应用级数据， 并在会话线程间共享。它可以随时在任何线程中被调用。记忆的范围是任意自定义命名空间，而不仅仅是单一线程 ID。
+
+![短期记忆与长期记忆架构示意图](图片/page-06-short-term-long-term-memory.png)
+
+#### 1.3.2 记忆的管理
+
+- 在LangChain v0.x版本中，通过专用的**xxxMemory类**管理记忆。
+
+- 在LangChain v1.x版本中，Agent是构建在**LangGraph图结构之上**的，通过上文提到的**state**和**store**构建记忆系统。使用更简单、功能更统一。
+  - **state：短期记忆对象**，以会话为单位组织，包含当前会话的所有消息记录以及自定义信息。
+  - **store：长期记忆对象**，跨会话持久化的数据，通常需要结合向量数据库或外部存储实现。
+
+
+
+## 2、短期记忆
+
+- LangChain1.x 的短期记忆是三者的组合：
+  - **State（会话内部状态）+ Checkpointer（持久化机制）+ Thread ID（会话作用域）**
+    - State：默认存储历史消息列表messages，通过State 管理历史消息
+    - Checkpointer：负责将State 作为检查点持久化保存，检查点是某个时刻的State 快照
+    - Thread ID：用于唯一标识State，LangChain运行时会按照 thread_id 读写State快照
+
+- 这就像玩 RPG 游戏时的“自动存档”：你不需要手动保存，系统在关键节点自动记录，下次进入游戏随时可以从上次的存档点继续。
+
+
+
+### 2.1 基于内存的持久化器
+
+- 这是最便捷的使用方式，适合快速测试或调试。
+
+#### 2.1.1 没有记忆
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage, AIMessage
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+agent = create_agent(
+    model=model,
+    tools=[]
+)
+
+print("\n第一轮对话：")
+response1 = agent.invoke({
+    "messages": [HumanMessage("我叫张三")]
+})
+print(f"Agent: {response1['messages'][-1].content}")
+
+print("\n第二轮对话：")
+response2 = agent.invoke({
+    "messages": [HumanMessage("我叫什么？")]
+})
+print(f"Agent: {response2['messages'][-1].content}")
+```
+
+```text
+第一轮对话：
+Agent: 你好，张三！很高兴认识你。有什么我可以帮你的吗？
+
+第二轮对话：
+Agent: 我不知道你的名字，除非你告诉我。
+如果你愿意，可以直接发给我，我就能记住在这次对话里称呼你。
+```
+
+
+
+#### 2.1.2 拥有记忆
+
+- **步骤1：第一二轮对话**
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+checkpointer = InMemorySaver()
+# 3、创建 Agent 时添加 checkpointer
+agent = create_agent(
+    model=model,
+    checkpointer=checkpointer  # 添加内存管理
+)
+
+# 4、调用时指定 thread_id
+config = {
+    "configurable": {
+        "thread_id": "1"
+    }
+}
+
+# 5、对话
+print("\n第一轮对话：")
+response1 = agent.invoke({
+    "messages": [HumanMessage("我叫张三")]},
+    config=config  # 传入 config
+)
+print(f"Agent: {response1['messages'][-1].content}")
+
+print("\n第二轮对话：")
+response2 = agent.invoke({
+    "messages": [HumanMessage("我叫什么？")]},
+    config=config  # 使用相同的 thread_id
+)
+print(f"Agent: {response2['messages'][-1].content}")
+```
+
+```text
+第一轮对话：
+Agent: 你好，张三！很高兴认识你。😊
+
+有什么我可以帮你的吗？无论是想聊聊天、问问题，还是需要帮忙处理什么事情，我都在这里。
+
+第二轮对话：
+Agent: 你叫张三。😊
+```
+
+- 说明：你只需传入 checkpointer 和 config，Agent 就能自然具备连续对话能力。
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from rich import print as rprint
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+checkpointer = InMemorySaver()
+# 3、创建 Agent 时添加 checkpointer
+agent = create_agent(
+    model=model,
+    checkpointer=checkpointer  # 添加内存管理
+)
+
+# 4、调用时指定 thread_id
+config = {
+    "configurable": {
+        "thread_id": "1"
+    }
+}
+
+# 5、对话
+print("\n第一轮对话：")
+response1 = agent.invoke({
+    "messages": [HumanMessage("我叫张三")]},
+    config=config  # 传入 config
+)
+print(f"Agent: {response1['messages'][-1].content}")
+
+print("\n第二轮对话：")
+response2 = agent.invoke({
+    "messages": [HumanMessage("我叫什么？")]},
+    config=config  # 使用相同的 thread_id
+)
+print(f"Agent: {response2['messages'][-1].content}")
+
+# 智能体状态信息
+print("\n智能体状态信息：")
+latest_state = agent.get_state(config)
+rprint(latest_state)
+```
+
+```json
+StateSnapshot(
+    values={
+        'messages': [
+            HumanMessage(
+                content='我叫张三',
+                additional_kwargs={},
+                response_metadata={},
+                id='e4fac4e4-6a94-4f68-94eb-f2fbe82601d4'
+            ),
+            AIMessage(
+                content='你好，张三！很高兴认识你。请问有什么我可以帮你的吗？',
+                additional_kwargs={'refusal': None},
+                response_metadata={
+                    'token_usage': {
+                        'completion_tokens': 81,
+                        'prompt_tokens': 32,
+                        'total_tokens': 113,
+                        'completion_tokens_details': {
+                            'accepted_prediction_tokens': None,
+                            'audio_tokens': None,
+                            'reasoning_tokens': 64,
+                            'rejected_prediction_tokens': None
+                        },
+                        'prompt_tokens_details': None
+                    },
+                    'model_provider': 'openai',
+                    'model_name': 'deepseek-v4.1-flash',
+                    'system_fingerprint': None,
+                    'id': 'chatcmpl-de1b7369',
+                    'finish_reason': 'stop',
+                    'logprobs': None
+                },
+                id='lc_run--01a12521-31bc-7623-987e-0463ac99290c-0',
+                tool_calls=[],
+                invalid_tool_calls=[],
+                usage_metadata={
+                    'input_tokens': 32,
+                    'output_tokens': 81,
+                    'total_tokens': 113,
+                    'input_token_details': {},
+                    'output_token_details': {'reasoning': 64}
+                }
+            ),
+            HumanMessage(
+                content='我叫什么？',
+                additional_kwargs={},
+                response_metadata={},
+                id='e00a2898-a8df-48cc-9ae0-f742d714c78f'
+            ),
+            AIMessage(
+                content='你叫张三。',
+                additional_kwargs={'refusal': None},
+                response_metadata={
+                    'token_usage': {
+                        'completion_tokens': 49,
+                        'prompt_tokens': 54,
+                        'total_tokens': 103,
+                        'completion_tokens_details': {
+                            'accepted_prediction_tokens': None,
+                            'audio_tokens': None,
+                            'reasoning_tokens': 43,
+                            'rejected_prediction_tokens': None
+                        },
+                        'prompt_tokens_details': None
+                    },
+                    'model_provider': 'openai',
+                    'model_name': 'deepseek-v4.1-flash',
+                    'system_fingerprint': None,
+                    'id': 'chatcmpl-d468d7ea',
+                    'finish_reason': 'stop',
+                    'logprobs': None
+                },
+                id='lc_run--01a12521-40b1-7763-8cc7-6006f7807b32-0',
+                tool_calls=[],
+                invalid_tool_calls=[],
+                usage_metadata={
+                    'input_tokens': 54,
+                    'output_tokens': 49,
+                    'total_tokens': 103,
+                    'input_token_details': {},
+                    'output_token_details': {'reasoning': 43}
+                }
+            )
+        ]
+    },
+    next=(),
+    config={
+        'configurable': {
+            'thread_id': '1',
+            'checkpoint_ns': '',
+            'checkpoint_id': '1f1c48c7-6e4b-6623-8004-31b99b2efabf'
+        }
+    },
+    metadata={
+        'source': 'loop',
+        'step': 4,
+        'parents': {},
+        'ls_integration': 'langchain_create_agent'
+    },
+    created_at='2026-10-10T09:24:59.436176+00:00',
+    parent_config={
+        'configurable': {
+            'thread_id': '1',
+            'checkpoint_ns': '',
+            'checkpoint_id': '1f1c48c7-6703-6f39-8003-eae7dc62bc72'
+        }
+    },
+    tasks=(),
+    interrupts=()
+)
+```
+
+- **步骤2：第三轮对话**
+  - 当我们再次进行对话时，直接带入线程ID，即可带入此前对话记忆：
+
+```python
+import os
+
+from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from rich import print as rprint
+
+# 1、加载配置文件
+load_dotenv(override=True)
+
+# 2、初始化模型对象
+model = init_chat_model(
+    model=os.getenv("CHAT_MODEL"),
+    model_provider='openai',
+    base_url=os.getenv("CHAT_BASE_URL"),
+    api_key=os.getenv("CHAT_API_KEY")
+)
+
+checkpointer = InMemorySaver()
+# 3、创建 Agent 时添加 checkpointer
+agent = create_agent(
+    model=model,
+    checkpointer=checkpointer  # 添加内存管理
+)
+
+# 4、调用时指定 thread_id
+config = {
+    "configurable": {
+        "thread_id": "1"
+    }
+}
+
+# 5、对话
+print("\n第一轮对话：")
+response1 = agent.invoke({
+    "messages": [HumanMessage("我叫张三")]},
+    config=config  # 传入 config
+)
+print(f"Agent: {response1['messages'][-1].content}")
+
+print("\n第二轮对话：")
+response2 = agent.invoke({
+    "messages": [HumanMessage("我叫什么？")]},
+    config=config  # 使用相同的 thread_id
+)
+print(f"Agent: {response2['messages'][-1].content}")
+
+print("\n第三轮对话：")
+response3 = agent.invoke({
+    "messages": [HumanMessage("我刚才问了什么问题？")]},
+    config=config  # 使用相同的 thread_id
+)
+print(f"Agent: {response3['messages'][-1].content}")
+```
+
+```text
+第一轮对话：
+Agent: 你好，张三！很高兴认识你。有什么我可以帮你的吗？
+
+第二轮对话：
+Agent: 你叫张三。
+
+第三轮对话：
+Agent: 你刚才问的是：**“我叫什么？”**
+```
+
+```python
+from rich import print as rprint
+
+latest_state = agent.get_state(config)
+rprint(latest_state)
+```
+
+- 输出
+
+~~~json
+StateSnapshot(
+    values={
+        'messages': [
+            HumanMessage(
+                content='我叫张三',
+                additional_kwargs={},
+                response_metadata={},
+                id='d0e0579a-bf7b-4159-a7b2-e22dbeab0dde'
+            ),
+            AIMessage(
+                content='你好，张三！很高兴认识你。有什么我可以帮你的吗？',
+                additional_kwargs={'refusal': None},
+                response_metadata={
+                    'token_usage': {
+                        'completion_tokens': 155,
+                        'prompt_tokens': 32,
+                        'total_tokens': 187,
+                        'completion_tokens_details': {
+                            'accepted_prediction_tokens': None,
+                            'audio_tokens': None,
+                            'reasoning_tokens': 139,
+                            'rejected_prediction_tokens': None
+                        },
+                        'prompt_tokens_details': None
+                    },
+                    'model_provider': 'openai',
+                    'model_name': 'deepseek-v4.1-flash',
+                    'system_fingerprint': None,
+                    'id': 'chatcmpl-18f60873',
+                    'finish_reason': 'stop',
+                    'logprobs': None
+                },
+                id='lc_run--01a12526-8823-7702-80e7-77ea175ea323-0',
+                tool_calls=[],
+                invalid_tool_calls=[],
+                usage_metadata={
+                    'input_tokens': 32,
+                    'output_tokens': 155,
+                    'total_tokens': 187,
+                    'input_token_details': {},
+                    'output_token_details': {'reasoning': 139}
+                }
+            ),
+            HumanMessage(
+                content='我叫什么？',
+                additional_kwargs={},
+                response_metadata={},
+                id='b2bed699-149a-42ba-86ab-0b61493720a9'
+            ),
+            AIMessage(
+                content='你叫张三。',
+                additional_kwargs={'refusal': None},
+                response_metadata={
+                    'token_usage': {
+                        'completion_tokens': 43,
+                        'prompt_tokens': 53,
+                        'total_tokens': 96,
+                        'completion_tokens_details': {
+                            'accepted_prediction_tokens': None,
+                            'audio_tokens': None,
+                            'reasoning_tokens': 37,
+                            'rejected_prediction_tokens': None
+                        },
+                        'prompt_tokens_details': None
+                    },
+                    'model_provider': 'openai',
+                    'model_name': 'deepseek-v4.1-flash',
+                    'system_fingerprint': None,
+                    'id': 'chatcmpl-8bb5732a',
+                    'finish_reason': 'stop',
+                    'logprobs': None
+                },
+                id='lc_run--01a12526-b34e-71a2-a544-ba39731c6f92-0',
+                tool_calls=[],
+                invalid_tool_calls=[],
+                usage_metadata={
+                    'input_tokens': 53,
+                    'output_tokens': 43,
+                    'total_tokens': 96,
+                    'input_token_details': {},
+                    'output_token_details': {'reasoning': 37}
+                }
+            ),
+            HumanMessage(
+                content='我刚才问了什么问题？',
+                additional_kwargs={},
+                response_metadata={},
+                id='a21546b7-b8d5-4aa3-b3e0-561d0e6b73f2'
+            ),
+            AIMessage(
+                content='你刚才问的是：**“我叫什么？”**',
+                additional_kwargs={'refusal': None},
+                response_metadata={
+                    'token_usage': {
+                        'completion_tokens': 113,
+                        'prompt_tokens': 65,
+                        'total_tokens': 178,
+                        'completion_tokens_details': {
+                            'accepted_prediction_tokens': None,
+                            'audio_tokens': None,
+                            'reasoning_tokens': 100,
+                            'rejected_prediction_tokens': None
+                        },
+                        'prompt_tokens_details': None
+                    },
+                    'model_provider': 'openai',
+                    'model_name': 'deepseek-v4.1-flash',
+                    'system_fingerprint': None,
+                    'id': 'chatcmpl-b86d53f3',
+                    'finish_reason': 'stop',
+                    'logprobs': None
+                },
+                id='lc_run--01a12526-b5c7-7d52-9310-c97692366e73-0',
+                tool_calls=[],
+                invalid_tool_calls=[],
+                usage_metadata={
+                    'input_tokens': 65,
+                    'output_tokens': 113,
+                    'total_tokens': 178,
+                    'input_token_details': {},
+                    'output_token_details': {'reasoning': 100}
+                }
+            )
+        ]
+    },
+    next=(),
+    config={
+        'configurable': {
+            'thread_id': '1',
+            'checkpoint_ns': '',
+            'checkpoint_id': '1f1c48d4-c4c4-6264-8007-05a9b0ef231e'
+        }
+    },
+    metadata={
+        'source': 'loop',
+        'step': 7,
+        'parents': {},
+        'ls_integration': 'langchain_create_agent'
+    },
+    created_at='2026-10-10T09:30:57.469483+00:00',
+    parent_config={
+        'configurable': {
+            'thread_id': '1',
+            'checkpoint_ns': '',
+            'checkpoint_id': '1f1c48d4-b9db-6545-8006-ffb97ed2f812'
+        }
+    },
+    tasks=(),
+    interrupts=()
+)
+~~~
+
+- 说明：第三轮对话中的 "我刚才问了什么问题？" 就能在第二轮存储的消息历史中找到答案。所有消息历史都会自动追加到 AgentState 的 messages 字段中，无需手动维护。
+
+- **步骤3：更新线程ID**而如果更新线程ID，则会重新开启对话：
+
+```python
+config2 = {
+    "configurable": {
+        "thread_id": "2"
+    }
+}
+
+response4 = agent.invoke(
+    {"messages": [HumanMessage("你还记得我叫什么名字么？")]},
+    config=config2
+)
+
+print(response4['messages'][-1].content)
+```
+
+```text
+我目前**不知道你的名字**，因为你还没有告诉我。
+如果你愿意，可以直接发我你的名字，我就用这个称呼你。
+```
+
+- 说明：<font color='red'>**thread_id 隔离不同会话空间。**</font>
+
+
+
+#### 2.1.3 关键步骤说明
+
+- **第1步：初始化记忆引擎**：checkpointer = InMemorySaver() ——创建一个内存级的记忆存储。
+  - 注意：<font color="red">**InMemorySaver内存中保存，进程结束就丢失数据，适合测试。生产环境可换成数据库持久化的 SqliteSaver、PostgresSaver 等**</font>
+
+- **第2步：绑定Agent**：在 create_agent 时传入 checkpointer，让 Agent 具备状态存储能力。
+
+- **第3步：设定会话ID**：通过 config = {"configurable": {"thread_id": "1"}} 为每次调用指定线程标识。**同一个thread_id共享记忆，不同thread_id完全隔离**。
+
+```python
+# 会话 1
+config1 = {"configurable": {"thread_id": "1"}}
+agent.invoke({...}, config=config1)
+
+# 会话 2
+config2 = {"configurable": {"thread_id": "2"}}
+agent.invoke({...}, config=config2)
+
+# 两个会话完全独立
+```
+
+- thread_id 是记忆管理的核心开关：在会话2里询问会话1的会话信息，Agent 会表示不知道——因为双方**记忆空间完全隔离**。
+
+- **生产环境中：**
+  - **场景1：多用户聊天**
+  - 不同 thread_id = 不同会话，Agent 能正确记住每个会话的内容。
+
+  ~~~python
+  agent = create_agent(
+      model=model,
+      tools=[],
+      checkpointer=InMemorySaver()
+  )
+  # 用户 Alice
+  config_alice = {"configurable": {"thread_id": "user_alice"}}
+  agent.invoke({"messages": [...]}, config_alice)
+  ...
+  
+  
+  # 用户 Bob
+  config_bob = {"configurable": {"thread_id": "user_bob"}}
+  agent.invoke({"messages": [...]}, config_bob)
+  ...
+  
+  # 两个会话完全独立
+  ~~~
+  - **场景****2****：同一用户的不同任务**
+
+  ~~~python
+  # 任务 1：写代码
+  config_task1 = {"configurable": {"thread_id": "task_coding"}}
+  agent.invoke({"messages": [...]}, config_task1)
+  ...
+  
+  
+  # 任务 2：写文档
+  config_task2 = {"configurable": {"thread_id": "task_docs"}}
+  agent.invoke({"messages": [...]}, config_task2)
+  ...
+  ~~~
+
+
+#### 2.1.4 工作原理
+
+- **内存保存了什么？**
+
+```python
+agent.invoke({"messages": [{"role": "user", "content": "你好"}]}, config)
+# InMemorySaver 保存：
+# {
+#     "thread_id": "xxx",
+#     "messages": [
+#         HumanMessage("你好"),
+#         AIMessage("你好！有什么可以帮助你的吗？")
+#     ]
+# }
+
+agent.invoke({"messages": [{"role": "user", "content": "天气"}]}, config)
+# InMemorySaver 更新：
+# {
+#     "thread_id": "xxx",
+#     "messages": [
+#         HumanMessage("你好"),
+#         AIMessage("你好！有什么可以帮助你的吗？"),
+#         HumanMessage("天气"),
+#         AIMessage("...")
+#     ]
+# }
+```
+
+- **自动追加历史**
+
+```python
+# 你只需要传新消息
+agent.invoke(
+    {"messages": [{"role": "user", "content": "新问题"}]},
+    config
+)
+```
+
+- 此时，checkpointer 自动：
+  - ① 读取之前的历史
+  - ② 追加新消息
+  - ③ 调用模型（传入完整历史）
+  - ④ 保存新的历史
+
+- **说明：**checkpointer 会自动管理历史
+
+
+
+#### 2.1.5 常见问题
+
+**1、为什么Agent不记得？**
+
+检查：
+
+- ✅ 是否添加了 checkpointer=InMemorySaver()？
+- ✅ 是否传入了 config 参数？
+- ✅ 两次调用的 thread_id 是否相同？
+
+```python
+agent = create_agent(model=model, tools=[])
+agent.invoke({...})  # 不会记住
+
+# ❌ 错误：没有 config
+
+agent = create_agent(model=model, tools=[], checkpointer=InMemorySaver())
+agent.invoke({...})  # 不会记住
+
+# ❌ 错误：thread_id 不同
+
+agent.invoke({...}, config={"configurable": {"thread_id": "1"}})
+agent.invoke({...}, config={"configurable": {"thread_id": "2"}})  # 不同会话
+
+# ✅ 正确
+
+agent = create_agent(model=model, tools=[], checkpointer=InMemorySaver())
+config = {"configurable": {"thread_id": "1"}}
+agent.invoke({...}, config)
+agent.invoke({...}, config)  # 记得！
+```
+
+**2、InMemorySaver会丢失数据吗？**
+
+会！ InMemorySaver 只保存在内存中：
+
+- ✅ 同一进程内有效（不支持跨进程共享）
+- ❌ 程序重启后丢失（或进程重启后丢失）
+- ❌ 不同进程无法共享
+
+解决方案：持久化（SQLite、PostgreSQL）
+
+**3、内存会无限增长吗？**
+
+会！ 默认情况下，InMemorySaver 会保存所有消息。
+
+问题：
+
+- 消息越来越多（无限增长，需要管理上下文）
+- token消耗增加，甚至会超过模型的 token 限制
+- 响应速度变慢、成本增加
+
+解决方案：上下文管理（修剪、摘要）
+
+**4、如何清空某个会话的历史？**
+
+目前 InMemorySaver 没有提供删除 API。
+
+临时方案：
+
+- 使用新的 thread_id
+- 或重新创建 Agent
+
+
+
+### 2.2 基于外部存储介质的持久化器
+
+如果将状态检查点（checkpointer） 保存在内存，进程结束则状态丢失，生产环境不可接受。因此，生产环境要用持久化的外部存储介质，如PostgreSQL。LangGraph提供的checkpointer后端列表如下
+
+<https://docs.langchain.com/oss/python/langgraph/persistence#checkpointer-libraries>
+
+此处选择PostgreSQL作为持久化器。
+
+#### 2.2.1 数据库环境准备
+
+在此之前，先准备好PostgreSQL环境，此处在云服务器的Ubuntu系统安装PostgreSQL。大家需要根据自己云服务器位置，更改URL中的IP即可。
+
+具体云服务器安装和PostgreSQL的安装，见文件02-资料下的《Linux云服务器安装与PostgreSQL安装》
+
+```text
+URL：postgresql://langchain_user:abcd1234@118.195.128.47:5432/langchain_db?
+```
+
+**说明：**
+
+1、上述URL中的用户名、密码、IP地址，需要根据自己的情况替换。
+
+2、要在LangChain中对接PostgreSQL，还需要额外的依赖，比如：
+
+```bash
+pip install langgraph-checkpoint-postgres
+```
+
+其实我们在课程开始的requirements.txt中已经提供了相关依赖，此处**不必也不能重新安装**，否则版本可能冲突。
+
+#### 2.2.2 代码实现
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+model = init_chat_model(
+    model="gpt-5.4-mini",
+    model_provider="openai",
+    api_key=os.getenv("CLOSEAI_API_KEY"),
+    base_url=os.getenv("CLOSEAI_BASE_URL")
+)
+```
+
+```python
+from langchain.agents import create_agent
+from langchain.messages import HumanMessage
+from langgraph.checkpoint.postgres import PostgresSaver
+
+
+DB_URL ="postgresql://langchain_user:abcd1234@118.195.128.47:5432/langchain_db?sslmode=disable"
+with PostgresSaver.from_conn_string(DB_URL) as checkpointer:
+    # 初始化PostgreSQL数据库
+    checkpointer.setup()
+
+    agent = create_agent(
+        model=model,
+        checkpointer=checkpointer
+    )
+
+    config = {"configurable": {"thread_id": "1"}}
+    response1 = agent.invoke(
+        {"messages": [HumanMessage("你好，我是老王")]},
+        config=config
+    )
+    print("=" * 30, "-> 第一次调用 <-", "=" * 30)
+    for msg in response1["messages"]:
+        msg.pretty_print()
+
+    response2 = agent.invoke(
+        {"messages": [HumanMessage("你好，我是谁？")]},
+        config=config
+    )
+
+    print("=" * 30, "-> 第二次调用 <-", "=" * 30)
+    for msg in response2["messages"]:
+        msg.pretty_print()
+```
+
+输出
+
+```text
+============================== -> 第一次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是老王
+================================== Ai Message==================================
+
+你好，老王！很高兴认识你。有什么我可以帮你的？
+============================== -> 第二次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是老王
+================================== Ai Message==================================
+
+你好，老王！很高兴认识你。有什么我可以帮你的？
+================================ Human Message=================================
+
+你好，我是谁？
+================================== Ai Message==================================
+
+你是老王。
+```
+
+setup() 用于初始化PostgreSQL数据库，首次运行会创建必要的表，重复执行不会重新建表，底层逻辑是Create IF Not Exists ，相关源码如下
+
+```python
+def setup(self) -> None:
+    """Set up the checkpoint database asynchronously.
+
+    This method creates the necessary tables in the Postgres database if theydon't already exist and runs database migrations. It MUST be called directlyby the user the first time checkpointer is used.
+    """
+    ...
+```
+
+#### 2.2.3 查看持久化数据
+
+查看PostgreSQL数据库，可以通过命令行或图形化工具查看
+
+```bash
+ubuntu@VM-0-6-ubuntu:~$ psql"postgresql://langchain_user:abcd1234@localhost:5432/langchain_db?
+```
+
+```bash
+psql (16.13 (Ubuntu 16.13-0ubuntu0.24.04.1))
+Type "help" for help.
+
+langgraph_db=>
+```
+
+PostgreSQL的存储结构是Database -> Schema -> Table
+
+- Database：数据库
+- Schema：分区
+- Table：表
+
+**需求1：查看所有数据库**
+
+```sql
+langgraph_db=> \l
+                                                              List ofdatabases
+     Name     |     Owner      | Encoding | Locale Provider | Collate |Ctype  | ICU Locale | ICU Rules |         Access privileges
+--------------+----------------+----------+-----------------+---------+---------+------------+-----------+-----------------------------------
+ langgraph_db | langgraph_user | UTF8     | libc            | C.UTF-8 |C.UTF-8 |            |           | =Tc/langgraph_user               +
+              |                |          |                 |         |    |            |           | langgraph_user=CTc/langgraph_user
+ postgres     | postgres       | UTF8     | libc            | C.UTF-8 |C.UTF-8 |            |           |
+ template0    | postgres       | UTF8     | libc            | C.UTF-8 |C.UTF-8 |            |           | =c/postgres                      +
+              |                |          |                 |         |    |            |           | postgres=CTc/postgres
+ template1    | postgres       | UTF8     | libc            | C.UTF-8 |C.UTF-8 |            |           | =c/postgres                      +
+              |                |          |                 |         |    |            |           | postgres=CTc/postgres
+(4 rows)
+```
+
+命令行前缀langgraph_db 标识了当前所在数据库
+
+**需求2：查看所有schema**
+
+```sql
+langgraph_db=> \dn
+      List of schemas
+  Name  |       Owner
+--------+-------------------
+ public | pg_database_owner
+(1 row)
+```
+
+**需求3：查看当前所处的schema**
+
+```sql
+langgraph_db=> select current_schema();
+ current_schema
+----------------
+ public
+(1 row)
+```
+
+**需求4：查看当前schema下的所有表**
+
+```sql
+langgraph_db=> \dt
+                    List of relations
+ Schema |         Name          | Type  |     Owner
+--------+-----------------------+-------+----------------
+ public | checkpoint_blobs      | table | langgraph_user
+ public | checkpoint_migrations | table | langgraph_user
+ public | checkpoint_writes     | table | langgraph_user
+ public | checkpoints           | table | langgraph_user
+(4 rows)
+```
+
+这四张表都是setup() 函数初始化时创建的。
+
+- checkpoints：这是**主表**，存每个 thread 在某个时刻的 **checkpoint快照**。
+- checkpoint_blobs：这张表专门存不适合直接内联进 checkpoints.checkpoint 的较复杂channel 值。
+- checkpoint_writes：这张表存的是**中间写入/ pending writes**，不是最终完整 checkpoint。
+- checkpoint_migrations：这张表不是业务数据表，而是**迁移版本表**。
+
+### 2.3 对比两种方式
+
+**举例1：基于内存存储**
+
+```python
+from langchain.agents import create_agent
+from langchain.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
+
+agent = create_agent(
+    model=model,
+    checkpointer=InMemorySaver()
+)
+config = {"configurable": {"thread_id": "1"}}
+
+
+print("=" * 30, "-> 第一次调用 <-", "=" * 30)
+response1 = agent.invoke(
+    {"messages": [HumanMessage("你好，我是谁？")]},
+    config=config
+)
+for msg in response1["messages"]:
+    msg.pretty_print()
+
+
+print("=" * 30, "-> 第二次调用 <-", "=" * 30)
+response2 = agent.invoke(
+    {"messages": [HumanMessage("我是老王")]},
+    config=config
+)
+for msg in response2["messages"]:
+    msg.pretty_print()
+
+
+print("=" * 30, "-> 第三次调用 <-", "=" * 30)
+response3 = agent.invoke(
+    {"messages": [HumanMessage("你好，我是谁？")]},
+    config
+)
+for msg in response3["messages"]:
+    msg.pretty_print()
+```
+
+输出如下
+
+```text
+============================== -> 第一次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是谁？
+================================== Ai Message==================================
+
+你好！我不知道你的真实身份，除非你告诉我。
+如果你愿意，我可以根据你提供的信息，帮你判断你是谁、你像哪类人，或者帮你整理一段自我介绍。
+============================== -> 第二次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是谁？
+================================== Ai Message==================================
+
+你好！我不知道你的真实身份，除非你告诉我。
+如果你愿意，我可以根据你提供的信息，帮你判断你是谁、你像哪类人，或者帮你整理一段自我介绍。
+================================ Human Message=================================
+
+我是老王
+================================== Ai Message==================================
+
+你好，老王！很高兴认识你。
+如果你愿意，我可以直接这样称呼你。
+============================== -> 第三次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是谁？
+================================== Ai Message==================================
+
+你好！我不知道你的真实身份，除非你告诉我。
+如果你愿意，我可以根据你提供的信息，帮你判断你是谁、你像哪类人，或者帮你整理一段自我介绍。
+================================ Human Message=================================
+
+我是老王
+================================== Ai Message==================================
+你好，老王！很高兴认识你。
+如果你愿意，我可以直接这样称呼你。
+================================ Human Message=================================
+
+你好，我是谁？
+================================== Ai Message==================================
+
+你好，老王。你是老王。
+```
+
+可以发现，每次执行的输出完全相同，而我们并没有更改thread_id，之所以看不到上次运行的状态是因为每次运行创建新的Saver()，历史State被丢弃了。
+
+**举例2：基于外部存储器存储**
+
+```python
+from langchain.agents import create_agent
+from langchain.messages import HumanMessage
+from langgraph.checkpoint.postgres import PostgresSaver
+
+DB_URL ="postgresql://langchain_user:abcd1234@118.195.128.47:5432/langchain_db?sslmode=disable"
+with PostgresSaver.from_conn_string(DB_URL) as checkpointer:
+    # 初始化数据库
+    checkpointer.setup()
+
+    agent = create_agent(
+        model=model,
+        checkpointer=checkpointer
+    )
+
+    config = {"configurable": {"thread_id": "3"}}
+
+    print("=" * 30, "-> 第一次调用 <-", "=" * 30)
+    response1 = agent.invoke(
+        {"messages": [HumanMessage("你好，我是谁啊？")]},
+        config
+    )
+    for msg in response1["messages"]:
+        msg.pretty_print()
+
+
+    print("=" * 30, "-> 第二次调用 <-", "=" * 30)
+    response2 = agent.invoke(
+        {"messages": [HumanMessage("我是老王~")]},
+        config
+    )
+    for msg in response2["messages"]:
+        msg.pretty_print()
+
+
+    print("=" * 30, "-> 第三次调用 <-", "=" * 30)
+    response3 = agent.invoke(
+        {"messages": [HumanMessage("你好，我是谁？？")]},
+        config
+    )
+    for msg in response3["messages"]:
+        msg.pretty_print()
+```
+
+第一次输出：
+
+```text
+============================== -> 第一次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是谁啊？
+================================== Ai Message==================================
+
+你好！我只能知道：你现在是这次和我对话的用户。
+如果你是想问“我记不记得你是谁”，那我其实**不会自动知道你的真实身份**，除非你在对话里告诉我。
+
+你可以直接告诉我你想让我怎么称呼你。
+============================== -> 第二次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是谁啊？
+================================== Ai Message==================================
+
+你好！我只能知道：你现在是这次和我对话的用户。
+如果你是想问“我记不记得你是谁”，那我其实**不会自动知道你的真实身份**，除非你在对话里告诉我。
+
+你可以直接告诉我你想让我怎么称呼你。
+================================ Human Message=================================
+
+我是老王~
+================================== Ai Message==================================
+
+你好，老王~ 很高兴认识你！
+接下来我可以怎么帮你？
+============================== -> 第三次调用 <-==============================
+================================ Human Message=================================
+
+你好，我是谁啊？
+================================== Ai Message==================================
+
+你好！我只能知道：你现在是这次和我对话的用户。
+如果你是想问“我记不记得你是谁”，那我其实**不会自动知道你的真实身份**，除非你在对话里告诉我。
+
+你可以直接告诉我你想让我怎么称呼你。
+================================ Human Message=================================
+
+我是老王~
+================================== Ai Message==================================
+
+你好，老王~ 很高兴认识你！
+接下来我可以怎么帮你？
+================================ Human Message=================================
+
+你好，我是谁？？
+================================== Ai Message==================================
+你好，老王 🙂
+```
+
+第二次运行输出
+
+```text
+1============================== -> 第一次调用 <-
+==============================
+2================================ Human Message
+=================================
+3
+4你好，我是谁啊？
+5================================== Ai Message
+==================================
+6
+7你好！我只能知道：你现在是这次和我对话的用户。
+8如果你是想问“我记不记得你是谁”，那我其实**不会自动知道你的真实身份**，除非你在对话
+里告诉我。
+9
+10你可以直接告诉我你想让我怎么称呼你。
+11================================ Human Message
+=================================
+12
+13我是老王~
+14================================== Ai Message
+==================================
+15
+16你好，老王~ 很高兴认识你！
+17接下来我可以怎么帮你？
+18================================ Human Message
+=================================
+19
+20你好，我是谁？？
+21================================== Ai Message
+==================================
+22
+你好，老王 🙂
+23
+24================================ Human Message
+=================================
+25
+26你好，我是谁啊？
+27================================== Ai Message
+==================================
+28
+29你好，老王。
+30============================== -> 第二次调用 <-
+==============================
+31================================ Human Message
+=================================
+32
+33你好，我是谁啊？
+34================================== Ai Message
+==================================
+35
+36你好！我只能知道：你现在是这次和我对话的用户。
+37如果你是想问“我记不记得你是谁”，那我其实**不会自动知道你的真实身份**，除非你在对话
+里告诉我。
+38
+39你可以直接告诉我你想让我怎么称呼你。
+40================================ Human Message
+=================================
+41
+42我是老王~
+43================================== Ai Message
+==================================
+44
+45你好，老王~ 很高兴认识你！
+46接下来我可以怎么帮你？
+47================================ Human Message
+=================================
+48
+49你好，我是谁？？
+50================================== Ai Message
+==================================
+51
+你好，老王 🙂
+52
+53================================ Human Message
+=================================
+54
+55你好，我是谁啊？
+56================================== Ai Message
+==================================
+57
+58你好，老王。
+59================================ Human Message
+=================================
+60
+61我是老王~
+62================================== Ai Message
+==================================
+63
+64你好，老王~ 有什么我可以帮你的？
+65============================== -> 第三次调用 <-
+==============================
+66================================ Human Message
+=================================
+67
+68你好，我是谁啊？
+69================================== Ai Message
+==================================
+70
+71你好！我只能知道：你现在是这次和我对话的用户。
+72如果你是想问“我记不记得你是谁”，那我其实**不会自动知道你的真实身份**，除非你在对话
+里告诉我。
+73
+74你可以直接告诉我你想让我怎么称呼你。
+75================================ Human Message
+=================================
+76
+77我是老王~
+78================================== Ai Message
+==================================
+79
+80你好，老王~ 很高兴认识你！
+81接下来我可以怎么帮你？
+82================================ Human Message
+=================================
+83
+84你好，我是谁？？
+85================================== Ai Message
+==================================
+86
+你好，老王 🙂
+87
+88================================ Human Message
+=================================
+89
+90你好，我是谁啊？
+91================================== Ai Message
+==================================
+92
+93你好，老王。
+94================================ Human Message
+=================================
+95
+96我是老王~
+97================================== Ai Message
+==================================
+98
+99你好，老王~ 有什么我可以帮你的？
+100================================ Human Message
+=================================
+101
+102你好，我是谁？？
+103================================== Ai Message
+==================================
+104
+105你好，老王。
+```
+
+根据输出判断，状态是累积的。
+
+由此可以得出结论：即便重新创建Saver()，只要thread_id 一致，历史状态就可以和当前调用串联起来。
+
+**总结**：
+
+1. InMemorySaver()将状态持久化到内存，进程结束或重建Saver() 则历史状态丢失
+2. 基于外部存储介质（如PostgreSQL）的持久化器，其存储的状态不会随进程终止而丢失，只要不显式删除历史状态，即可通过thread_id 加载历史状态。
+
+### 2.4 记忆治理策略（上下文管理）
+
+随着对话的进行，历史消息不断累积，state会持续增长，为模型带来挑战：
+
+1. LLM的上下文窗口是有限的，完整历史可能无法装入LLM的上下文窗口，导致上下文丢失或错误。
+2. 即便模型的上下文窗口够大，多数LLM在长上下文场景仍然表现不佳。模型会被陈旧或离题的内容“分散注意力”。
+3. 同时，会带来高昂的token花费。
+
+此时需要对上下文进行管理：对历史记录进行**压缩、清理、重组等**。
+
+#### 2.4.1 消息裁剪
+
+**调用模型前裁剪上下文**。
+
+目标是控制token用量，通常保留系统初始消息和最近若干消息，或按token数保留末尾内容。
+
+适合成本敏感、对旧上下文依赖不强的场景。
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+model = init_chat_model(
+    model="gpt-5.4-mini",
+    model_provider="openai",
+    api_key=os.getenv("CLOSEAI_API_KEY"),
+    base_url=os.getenv("CLOSEAI_BASE_URL")
+)
+```
+
+```python
+from langchain_core.messages import HumanMessage
+from langchain.messages import RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import before_model
+from langgraph.runtime import Runtime
+from langchain_core.runnables import RunnableConfig
+from typing import Any
+
+@before_model
+def trim_messages(state: AgentState, runtime: Runtime) -> dict[str, Any] |None:
+    messages = state["messages"]
+
+    if len(messages) <= 3:
+        return None
+
+    first_msg = messages[0]
+    recent_messages = messages[-3:] if len(messages) % 2 == 0 else messages[-4:]
+    new_messages = [first_msg] + recent_messages
+    return {
+        "messages": [
+            RemoveMessage(id=REMOVE_ALL_MESSAGES),
+            *new_messages
+        ]
+    }
+
+agent = create_agent(
+    model=model,
+    middleware=[trim_messages],
+    checkpointer=InMemorySaver(),
+)
+
+config: RunnableConfig = {"configurable": {"thread_id": "1"}}
+
+agent.invoke({"messages": [HumanMessage("你好，我是老王")]}, config)
+agent.invoke({"messages": [HumanMessage("从现在起，你叫小王")]}, config)
+agent.invoke({"messages": [HumanMessage("今天天气不错")]}, config)
+final_response = agent.invoke({"messages": [HumanMessage("告诉我，你是谁？我是谁？")]}, config)
+
+for msg in final_response["messages"]:
+    msg.pretty_print()
+```
+
+假设有 5 条消息：[H1, A1, H2, A2, H3] （当前总数 5，奇数）。
+
+执行 messages[-4:] 取出 [A1, H2, A2, H3]。加上第一条 H1，最终大模型看到的是 [H1, A1,H2, A2, H3] （相当于没剪掉什么）。
+
+输出
+
+```text
+================================ Human Message=================================
+
+你好，我是老王
+================================== Ai Message==================================
+
+好的，从现在起你可以叫我小王。
+那我也叫你老王，可以吗？
+================================ Human Message=================================
+
+今天天气不错
+================================== Ai Message==================================
+
+是啊，天气不错的话，心情也容易好起来。
+你今天有什么安排吗？
+================================ Human Message=================================
+
+告诉我，你是谁？我是谁？
+================================== Ai Message==================================
+
+我是你的AI助手。
+你是老王。
+```
+
+显然，裁剪生效了。
+
+分析：
+
+我们来看看连续 4 次 invoke 时，内存里到底发生了什么：
+
+| 步骤 | 触发动作与传入消息                   | 触发前 State 中的 messages 列表（长度）                      | trim_messages 是否触发与执行逻辑                            | 最终传给 LLM 的 messages 实际内容                            |
+| ---- | ------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------ |
+| 1    | `invoke("你好，我是老王")`           | [H：你好，我是老王]（1）                                     | **不触发**（长度 ≤ 3）                                      | [H：你好，我是老王]                                          |
+| --   | 模型自动回复（A1）                   | [H：你好……，A1：你好老王……]（2）                             | 存储到 Memory 中，等待下次                                  | -                                                            |
+| 2    | `invoke("从现在起，你叫小王")`       | [H：你好……，A1：……，H：从现在起……]（3）                      | **不触发**（长度 ≤ 3）                                      | [H：你好……，A1：……，H：从现在起……]                           |
+| --   | 模型自动回复（A2）                   | [H：你好……，A1：……，H：从现在……，A2：好的……]（4）            | 存储到 Memory 中，等待下次                                  | -                                                            |
+| 3    | `invoke("今天天气不错")`             | [H：你好……，A1：……，H：从现在……，A2：……，H：今天天气……]（5） | **触发裁剪！** 长度 5 是奇数 → 取后 4 条（`messages[-4:]`） | [H：你好，我是老王]（第一条）＋[A1，H：从现在……，A2，H：今天天气……]（后4条） |
+| --   | 模型自动回复（A3）                   | 此时 State 被重置为上述 5 条＋新回复的 A3（共6条）           | 存储到 Memory 中                                            | -                                                            |
+| 4    | `invoke("告诉我，你是谁？我是谁？")` | [H：你好……，A1：……，H：从现在……，A2：……，H：今天天……，A3：……，H：告诉我……]（7） | **触发裁剪！** 长度 7 是奇数 → 取后 4 条（`messages[-4:]`） | [H：你好，我是老王]（第一条）＋[A2，H：今天天……，A3，H：告诉我……]（后4条） |
+
+#### 2.4.2 消息删除
+
+消息裁剪强调“在模型调用前裁剪消息列表，**控制模型可以看到的上下文范围”**，而消息删除强调模型调用完成后将某些消息从消息列表中移除，永久更改状态。
+
+适合明确要遗忘、清理、重置某些历史。
+
+```python
+from langchain.messages import RemoveMessage
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import after_model
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.runtime import Runtime
+from langchain_core.runnables import RunnableConfig
+
+
+@after_model
+def delete_old_messages(state: AgentState, runtime: Runtime) -> dict | None:
+    messages = state["messages"]
+    # 保持最近的 5 条消息
+    if len(messages) > 5:
+        # 框架中通常使用 RemoveMessage 来标记删除，并返回更新状态。
+        to_delete = len(messages) - 5
+        return {"messages": [RemoveMessage(id=m.id) for m in messages[:to_delete]]}
+    return None
+
+
+agent = create_agent(
+    model=model,
+    middleware=[delete_old_messages],
+    checkpointer=InMemorySaver()
+)
+
+config: RunnableConfig = {"configurable": {"thread_id": "1"}}
+
+agent.invoke({"messages": "你好，我是老王"}, config)
+agent.invoke({"messages": "从现在起，你叫小王"}, config)
+agent.invoke({"messages": "今天天气不错"}, config)
+final_response = agent.invoke({"messages": "告诉我，你是谁？我是谁？"}, config)
+
+for msg in final_response["messages"]:
+    msg.pretty_print()
+```
+
+输出
+
+```text
+================================== Ai Message==================================
+
+好的，从现在起你可以叫我小王。
+================================ Human Message=================================
+
+今天天气不错
+================================== Ai Message==================================
+
+是啊，天气不错的时候心情也容易变好。你今天打算出去走走，还是在家休息一下？
+================================ Human Message=================================
+
+告诉我，你是谁？我是谁？
+================================== Ai Message==================================
+
+我是小王，你是老王。
+```
+
+显然，模型调用后消息列表规模超过阈值触发了消息裁剪。
+
+说明：只要消息总数超过 5 条，就计算超出几条（to_delete），然后精准地删掉最老的那几条，使剩下的消息总数永远保持在 5 条。
+
+**分析消息列表messages的数量变化：**
+
+📥 **第一轮：**
+
+- 用户说："你好，我是老王"（第 1 条）
+- AI 回复："你好，老王！"（第 2 条）
+- 数量：此时 len(messages) == 2 （不大于 5）。
+- 结果：中间件不触发。**（记忆：记住你是老王）**
+
+📥 **第二轮：**
+
+- 用户说："从现在起，你叫小王"（第 3 条）
+- AI 回复："好的，我是小王。"（第 4 条）
+- 数量：此时 len(messages) == 4 （不大于 5）。
+- 结果：中间件不触发。**（记忆：记住你是老王、我是小王）**
+
+📥 **第三轮：**
+
+- 用户说："今天天气不错"（第 5 条）
+- AI 回复："是啊，天气好心情也好。"（第 6 条）
+- 数量：此时 len(messages) == 6。**触发中间件条件（> 5）！**
+- 清理发生：
+  - 计算 to_delete = 6 - 5 = 1。
+  - 清理 messages[:1]，也就是**只删除了第1条消息**（“你好，我是老王”）。
+- 剩余消息（共 5 条）：
+
+1. AI 回复："你好，老王！"（第 2 条）
+2. 用户说："从现在起，你叫小王"（第 3 条）
+3. AI 回复："好的，我是小王。"（第 4 条）
+4. 用户说："今天天气不错"（第 5 条）
+5. AI 回复："是啊，天气好心情也好。"（第 6 条）
+
+📥 **第四轮（最终提问）：**
+
+- 用户输入："告诉我，你是谁？我是谁？"（第 7 条）
+  - 大模型读取上下文：在 AI 做出最终回复前，大模型会读取当前留存的 5 条历史记录 + 用户的这句新提问。
+  - 大模型通过上下文里 AI 自己说过的“你好，老王！”，依然能够推断出“哦，原来坐在对面的人叫老王”。
+- AI 做出最终回复：比如 "你是老王，我是小王啊。"（第 8 条）
+- 数量：此时回复完后，总数 len(messages) == 8。**再次触发中间件！**
+- 清理发生：
+  - 计算 to_delete = 8 - 5 = 3。
+  - 清理 messages[:3]，即把目前列表中最老的前 3 条消息删除。
+- 剩余消息：依然精准保持在最后 5 条。
+  - AI 回复："好的，我是小王。"（第 4 条）
+  - 用户说："今天天气不错"（第 5 条）
+  - AI 回复："是啊，天气好心情也好。"（第 6 条）
+  - 用户说：告诉我，你是谁？我是谁？（第 7 条）
+  - AI回复：你是老王，我是小王啊。（第 8 条）
+
+**RemoveMessage到底干了什么？**
+
+当你在中间件里返回 [RemoveMessage(id=m.id)] 时，你实际上是向框架发送了一个删除指令。
+
+框架的底层处理逻辑如下：
+
+```text
+[历史消息池 (内存中持续存在)]
+ ├── Message(id="1", content="你好，我是老王")
+ ├── Message(id="2", content="...")
+ └── RemoveMessage(id="1")  <-- 这是一个新追加进去的“墓碑”标记
+```
+
+1. **追加“墓碑”标记**：框架收到 RemoveMessage(id="1") 后，并不会去内存的数组里把 id="1" 的对象删掉，而是把这个 RemoveMessage 作为一条新记录**追加**到当前线程的状态历史中。这个RemoveMessage 就像是一个“墓碑”。
+2. **运行时过滤合并（Reducer）**：当下一次你再次调用 agent.invoke 或者大模型要去读取上下文时，框架的内置合并器（Reducer）会把“原始消息”和“墓碑标记”放在一起进行计算：
+
+原始消息墓碑标记对外隐藏
+
+- 它在丢给大模型之前，会自动把被标记删除的消息过滤掉。
+
+#### 2.4.3 摘要
+
+**把早期历史压缩成摘要，再替换原始消息**。
+
+![消息摘要与过滤流程示意图](D:/%E5%B0%9A%E7%A1%85%E8%B0%B72026Langchain%E6%95%99%E7%A8%8B%E7%9A%84%E8%AF%BE%E4%BB%B6-md%E6%96%87%E6%A1%A3/%E5%B0%9A%E7%A1%85%E8%B0%B7-09-%E4%B8%8A%E4%B8%8B%E6%96%87%E4%B8%8E%E8%AE%B0%E5%BF%86/assets/page-30-summary-workflow.png)
+
+消息裁剪和删除都会导致上下文缺失，影响回答质量和用户体验。和它们相比，摘要是更适合长会话的折中方案：保语义，不保原文。官方推荐内置SummarizationMiddleware。上一章已有讲解。
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+model_out = init_chat_model(
+    model="gpt-5.4-mini",
+    model_provider="openai",
+    api_key=os.getenv("CLOSEAI_API_KEY"),
+    base_url=os.getenv("CLOSEAI_BASE_URL")
+)
+```
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+model_in = init_chat_model(
+    model="gpt-4o-mini",
+    model_provider="openai",
+    api_key=os.getenv("CLOSEAI_API_KEY"),
+    base_url=os.getenv("CLOSEAI_BASE_URL")
+)
+```
+
+```python
+from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents import create_agent
+from langgraph.checkpoint.memory import InMemorySaver
+
+
+# 创建带摘要中间件的 Agent
+agent = create_agent(
+    model=model_out,
+    tools=[],
+    checkpointer=InMemorySaver(),
+    middleware=[
+        SummarizationMiddleware(
+            model=model_in,
+            trigger=[
+                ("tokens", 100),  # 超过 100 tokens 就摘要
+            ],
+            keep=("messages", 2),
+            summary_prompt="对历史消息摘要，消息列表如下\n{messages}",
+
+        )
+    ]
+)
+
+config = {"configurable": {"thread_id": "1"}}
+
+print("\n进行多轮对话...")
+conversations = [
+    "我叫张三，是工程师。这里是一段非常长非常长的废话..." * 20, # 强制撑爆 100 tokens
+    "请总结一下我的信息"
+]
+
+for msg in conversations:
+    response = agent.invoke(
+        {"messages": [{"role": "user", "content": msg}]},
+        config=config
+    )
+    for msg in response["messages"]:
+        msg.pretty_print()
+    print("*" * 50)
+```
+
+```text
+进行多轮对话...
+================================ Human Message=================================
+
+我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...我叫张三，是工程师。这里是一段非常长非常长的废话...
+================================== Ai Message==================================
+
+你好，张三。你想让我基于这段内容做什么？
+如果你愿意，我可以帮你：
+
+1. **提炼关键信息**
+2. **总结成一句话/一段话**
+3. **改写成更正式的自我介绍**
+4. **识别并去掉重复废话**
+5. **翻译成英文**
+
+例如，提炼后可以写成：
+
+> 张三是一名工程师。
+
+如果你告诉我目标，我可以直接帮你处理。
+**************************************************
+================================ Human Message=================================
+
+Here is a summary of the conversation to date:
+
+根据历史消息，用户“张三”自称是一名工程师，并重复发送了大量无实质内容的废话（如“这里是一段非常长非常长的废话”）。摘要如下：
+
+**摘要**：用户张三（工程师）发送了重复的冗长废话，内容无实际信息。
+================================== Ai Message==================================
+
+你好，张三。你想让我基于这段内容做什么？
+如果你愿意，我可以帮你：
+
+1. **提炼关键信息**
+2. **总结成一句话/一段话**
+3. **改写成更正式的自我介绍**
+4. **识别并去掉重复废话**
+5. **翻译成英文**
+
+例如，提炼后可以写成：
+
+> 张三是一名工程师。
+
+如果你告诉我目标，我可以直接帮你处理。
+================================ Human Message=================================
+
+请总结一下我的信息
+================================== Ai Message==================================
+
+根据你提供的内容，目前能总结出的信息是：
+
+- **姓名**：张三
+- **职业**：工程师
+- **特点**：之前发送的内容以重复、冗长的无实质信息为主
+
+如果你愿意，我还可以帮你把这些信息整理成：
+- **正式简介**
+- **一句话自我介绍**
+- **简历风格描述**
+- **更自然的个人介绍**
+**************************************************
+```
+
+```python
+final_state = agent.get_state(config)
+print("\n--- 最终保存在 State 中的真实消息 ---")
+for msg in final_state.values.get("messages", []):
+    msg.pretty_print()
+```
+
+```text
+--- 最终保存在 State 中的真实消息 ---
+================================ Human Message=================================
+
+Here is a summary of the conversation to date:
+
+根据历史消息，用户“张三”自称是一名工程师，并重复发送了大量无实质内容的废话（如“这里是一段非常长非常长的废话”）。摘要如下：
+
+**摘要**：用户张三（工程师）发送了重复的冗长废话，内容无实际信息。
+================================== Ai Message==================================
+
+你好，张三。你想让我基于这段内容做什么？
+如果你愿意，我可以帮你：
+
+1. **提炼关键信息**
+2. **总结成一句话/一段话**
+3. **改写成更正式的自我介绍**
+4. **识别并去掉重复废话**
+5. **翻译成英文**
+
+例如，提炼后可以写成：
+
+> 张三是一名工程师。
+
+如果你告诉我目标，我可以直接帮你处理。
+================================ Human Message=================================
+
+请总结一下我的信息
+================================== Ai Message==================================
+
+根据你提供的内容，目前能总结出的信息是：
+
+- **姓名**：张三
+- **职业**：工程师
+- **特点**：之前发送的内容以重复、冗长的无实质信息为主
+
+如果你愿意，我还可以帮你把这些信息整理成：
+- **正式简介**
+- **一句话自我介绍**
+- **简历风格描述**
+- **更自然的个人介绍**
+```
+
+工作原理
+
+```text
+对话历史: [消息1, 消息2, ..., 消息20]  (超过 100 tokens)
+    ↓
+SummarizationMiddleware 自动触发
+    ↓
+摘要旧消息: "用户是张三，在北京工作，喜欢编程..."
+    ↓
+新历史: [摘要, 最近消息]  (减少到 100 tokens)
+```
+
+**常见问题**
+
+**1.摘要会丢失信息吗？**
+
+会有一些细节丢失，但：
+
+- 重要信息会保留（姓名、关键事实）
+- 最近的消息完整保留
+- 对于大部分场景足够
+  **2.设置最大token数触发摘要的标准是啥？**
+
+```text
+# 模型上下文窗口 4k → 设置 3000
+# 模型上下文窗口 8k → 设置 6000
+# 模型上下文窗口 16k → 设置 12000
+
+# 留一些余量给工具调用和系统提示
+```
+
+**3.摘要成本高吗？**
+
+- 摘要只在超过阈值时触发
+- 可以使用便宜的模型（如 gpt-4o-mini）
+- 相比传输全部历史，通常更便宜
+  **4.摘要触发的频率要关注吗？**
+
+要关注，根据监控摘要触发频率，调整阈值。
+
+- 如果频繁触发 → 提高阈值
+- 如果从不触发 → 降低阈值
+
+#### 2.4.4 自定义过滤策略
+
+通过中间件可以随意更改消息列表，因此可以实现任意的过滤策略。
+
+此处不再演示。
+
+### 2.5 了解：state的理解
+
+state是agent底层有状态运行图的状态信息，是AgentState类型的实例，定义如下：
+
+```python
+class AgentState(TypedDict, Generic[ResponseT]):
+    """State schema for the agent."""
+
+    messages: Required[Annotated[list[AnyMessage], add_messages]]
+    jump_to: NotRequired[Annotated[JumpTo | None, EphemeralValue,PrivateStateAttr]]
+    structured_response: NotRequired[Annotated[ResponseT, OmitFromInput]]
+```
+
+说明：
+
+- AgentState是TypedDict的子类，这意味着我们可以按照字典的读写方式访问其实例的元素。
+- 该类有三个字段
+  - messages：截止到当前节点的历史会话消息记录，标记为Required。
+  - jump_to：中间件章节介绍过，表示跳转至运行图的指定节点，标记为NotRequired，表示该字段可以为None。（后续案例可以看到这一点）
+  - structured_response：结构化输出内容，当我们启用结构化输出时，结构化后的内容会被记录在这里，见下文案例。
+
+举例：
+
+```python
+from langchain.chat_models import init_chat_model
+from dotenv import load_dotenv
+import os
+
+# 从.env文件中加载环境变量
+load_dotenv(override=True)
+
+model = init_chat_model(
+    model="gpt-5.4-mini",
+    model_provider="openai",
+    api_key=os.getenv("CLOSEAI_API_KEY"),
+    base_url=os.getenv("CLOSEAI_BASE_URL")
+)
+```
+
+```python
+from langchain.agents import create_agent
+from langchain.agents.middleware import AgentState, before_model,wrap_tool_call, after_agent
+from langchain.tools.tool_node import ToolCallRequest
+from langchain.messages import HumanMessage, AIMessage, ToolMessage
+from langchain.tools import tool
+from langgraph.runtime import Runtime
+from langgraph.types import Command
+from typing import Any, Callable
+from pydantic import BaseModel, Field
+
+class WeatherInfo(BaseModel):
+    """城市天气情况"""
+    city: str = Field(description="城市名称")
+    temperature: str = Field(description="气温")
+    desc: str = Field(description="当日天气概述")
+
+@tool(parse_docstring=True)
+def get_weather(city: str):
+    """
+    获取当日天气
+
+    Args:
+        city: 城市名称
+    """
+    return f"[{city}] 今天气温9~16度，万里无云，天气不错适合外出"
+
+@before_model(can_jump_to=["tools"])
+def direct_tool_call(state: AgentState, runtime: Runtime) -> dict[str, Any]| None:
+    last_msg = state["messages"][-1]
+    if isinstance(last_msg, HumanMessage) and "天气" in last_msg.text and "北京" in last_msg.text:
+        fake_tool_call = AIMessage(
+            content="人工构造的消息",
+            tool_calls=[
+                {
+                    "name": "get_weather",
+                    "args": {
+                        "city": "北京"
+                    },
+                    "id": "direct_call_id"
+                }
+            ]
+        )
+        return {
+            "messages": [fake_tool_call],
+            "jump_to": "tools"
+        }
+
+    return None
+
+@wrap_tool_call
+def first_check(
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], ToolMessage | Command]
+    ) -> ToolMessage | Command:
+    print("=" * 30, '-> In first_check Middleware <-', "=" * 30)
+    print(f"{request.state.get("jump_to", None) = }")
+    print(f"{request.state.get("structured_response", None) = }")
+
+    return handler(request)
+
+@after_agent
+def final_check(state: AgentState, runtime: Runtime) -> dict[str, Any] |None:
+    print("=" * 30, '-> In final_check Middleware <-', "=" * 30)
+    for msg in state["messages"]:
+        msg.pretty_print()
+
+    print("=" * 30, "-> 消息打印完毕 <-", "=" * 30)
+    print(f"{state.get("jump_to", None) = }")
+    print(f"{state.get("structured_response", None) = }")
+
+    return None
+
+agent = create_agent(
+    model = model,
+    response_format=WeatherInfo,
+    middleware=[direct_tool_call, first_check, final_check],
+    tools=[get_weather],
+)
+
+response = agent.invoke({
+    "messages": [
+        HumanMessage("请帮我查询北京当日天气")
+    ]
+})
+```
+
+输出
+
+```text
+============================== -> In first_check Middleware <-==============================
+request.state.get("jump_to", None) = 'tools'
+request.state.get("structured_response", None) = None
+============================== -> In final_check Middleware <-==============================
+================================ Human Message=================================
+
+请帮我查询北京当日天气
+================================== Ai Message==================================
+
+人工构造的消息
+Tool Calls:
+get_weather (direct_call_id)
+Call ID: direct_call_id
+Args:
+ city: 北京
+================================= Tool Message=================================
+Name: get_weather
+
+[北京] 今天气温9~16度，万里无云，天气不错适合外出
+================================== Ai Message==================================
+
+{"city":"北京","temperature":"9~16℃","desc":"万里无云，天气不错适合外出"}
+============================== -> 消息打印完毕 <-==============================
+state.get("jump_to", None) = None
+state.get("structured_response", None) = WeatherInfo(city='北京',temperature='9~16℃', desc='万里无云，天气不错适合外出')
+```
+
+分析
+
+1. 我们在模型调用之前通过jump_to直接跳转至工具节点
+2. 在工具调用前打印状态信息，此时的jump_to非空
+3. 在Agent执行完毕之后打印状态信息，此时的structure_response非空而jump_to为空。
+
+## 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 十、RAG
