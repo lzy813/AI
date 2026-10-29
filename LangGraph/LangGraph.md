@@ -183,6 +183,8 @@
 
 ## 1、入门案例
 
+### 1.1 项目依赖
+
 - 创建项目，导入依赖
 
 ~~~bash
@@ -192,7 +194,97 @@ uv init LangGraphDemo
 uv add langgraph
 ~~~
 
-- 编写代码
+
+
+### 1.2 定义状态图步骤
+
+- 状态图的定义可以分为以下几个步骤：
+  - <font color="red">**1. 定义全局状态**</font> 定义整个运行图共享的全局状态（实际上，除了全局状态，LangGraph还支持其它类型的状态，下文详述）
+  - <font color="red">**2. 创建状态图**</font> 创建 StateGraph实例，将状态和状态图绑定
+  - <font color="red">**3. 定义图结构**</font> 定义节点和边并添加到状态图中
+
+
+
+#### 1.2.1 定义全局状态
+
+- <font color="red">**全局状态是 LangGraph 运行图每个节点都可以访问的公共对象**</font>
+
+~~~python
+class OverAllState(TypedDict):
+    logs: Annotated[list[str], add]
+    cur_id: str
+~~~
+
+
+
+#### 1.2.2 创建状态图
+
+~~~python
+builder = StateGraph(state_schema=OverAllState)
+~~~
+
+
+
+#### 1.2.3 定义图结构
+
+~~~python
+def node_1(state: OverAllState) -> OverAllState:
+    pre_id = state["cur_id"]
+    return {
+        "logs": ["node_1 运行完毕"],
+        "cur_id": pre_id + ", node_1"
+    }
+
+def node_2(state: OverAllState) -> OverAllState:
+    pre_id = state["cur_id"]
+    return {
+        "logs": ["node_2 运行完毕"],
+        "cur_id": pre_id + ", node_2"
+    }
+~~~
+
+
+
+#### 1.2.4 添加节点
+
+~~~python
+builder.add_node("node_1", node_1)
+builder.add_node("node_2", node_2)
+~~~
+
+
+
+#### 1.2.5 添加边
+
+~~~python
+builder.add_edge(START, "node_1")
+builder.add_edge("node_1", "node_2")
+builder.add_edge("node_2", END)
+~~~
+
+
+
+#### 1.2.6 编译状态图
+
+- 将上一步得到的状态图编译为可执行的运行图
+
+~~~python
+graph = builder.compile()
+~~~
+
+
+
+#### 1.2.7 调用状态图
+
+- 可以通过invoke调用计算图
+
+~~~python
+print(graph.invoke({"cur_id": "start"}))
+~~~
+
+
+
+### 1.3 总体代码
 
 ~~~python
 from langgraph.graph import StateGraph, START, END
@@ -302,7 +394,8 @@ print(result)
 
 ### 2.1 Mermaid方式
 
-- 用这块代码会生成graph的图
+- mermaid是一种生成图表和流程图的文本标记语言，它可以把简单的文本描述直接渲染成可视化图形。
+  - 通过以下代码可以用mermaid语法表达图结构，并打印mermaid源码
 
 ~~~python
 # 获取 Mermaid 语法的图结构源码
@@ -570,7 +663,7 @@ print(graph.invoke({"cur_id": "start"}))
 
 ### 1.2 dataclass方式
 
-- 属性调用方式由 ['字段名'] 变为 .字段名
+- 属性调用方式由 ['字段名'] 变为 <font color='red'>**.字段名**</font>
 
 ~~~python
 from langgraph.graph import StateGraph, START, END
@@ -698,22 +791,264 @@ print(result)
   - **官方首选**：大多数官方文档和示例都使用 TypedDict
 
   - **简洁清晰**：写法最简洁，结构最清晰
+  - 总结：相比普通 dict，TypedDict 可以提供更明确的字段约束和类型提示；相比 dataclass，TypedDict 更贴近 LangGraph 中状态的更新方式，因为节点通常返回的是表示“部分状态更新”的字典，而不是完整对象；相比 Pydantic BaseModel，它又更加轻量，不会引入额外的数据校验开销。因此，在没有复杂校验需求的情况下，TypedDict 是定义 LangGraph State Schema 的首选方式
 
 
 
 ## 2、状态合并
 
-### 2.1 定义
+### 2.1 什么是Reducer
 
-- State Reducer 是 LangGraph 中用于合并状态更新的核心机制。在 LangGraph 的 stateGraph 中，每个节点可以读取和写入共享状态，而 Reducer 定义了如何将多个节点对同一状态键的更新合并
+- State Reducer 是 LangGraph 中用于<font color="red">**合并状态更新的核心机制**</font>。在 LangGraph 的 stateGraph 中，每个节点可以读取和写入共享状态，而 Reducer 定义了如何<font color="red">**将多个节点对同一状态键的更新合并**</font>
 
 - **Reducer 的核心特征：**
 
-  - 函数签名：(value, value) -> value，接收当前值和更新值，返回合并后的新值
-  - 注解定义：通过 Annotated[Type, reducer_function] 为状态键指定 Reducer
+  - <font color="red">**函数签名**</font>：(value, value) -> value，接收当前值和更新值，返回合并后的新值
+  - <font color="red">**注解定义**</font>：通过 Annotated[Type, reducer_function] 为状态键指定 Reducer
 
-  - 默认行为：未指定 Reducer 的状态键使用覆盖策略（Last‑Write‑Wins）
+  - <font color="red">**默认行为**</font>：未指定 Reducer 的状态键使用覆盖策略（Last‑Write‑Wins）
 
 
 
-2
+### 2.2 如何定义Reducer
+
+#### 2.2.1 定义Reducer
+
+- Reducer 本质上是一个二元合并函数，用于定义当同一个字段产生多个更新值时，LangGraph 应该如何将这些值合并为一个最终结果
+
+- 函数签名：(Value, Value) -> Value
+- 示例代码如下：
+
+~~~python
+def my_reducer(left: list[str], right: list[str]) -> list[str]:
+    return left + right
+
+left = ['a', 'b']
+right = ['c']
+print(my_reducer(left, right))
+~~~
+
+- 其中，my_reducer 用于处理 list[str] 类型的数据。它接收两个列表参数：
+
+  - left：当前已累计的状态值；
+
+  - right：本次待合并的新值。
+
+- 函数内部通过 left + right 将两个列表合并，并返回合并后的结果。
+
+- 因此，该 Reducer 的作用是：<font color='red'>**当某个状态字段存在多次列表更新时，将这些列表内容追加合并，而不是直接覆盖原值。**</font>
+
+- 运行结果如下
+
+~~~bash
+['a', 'b', 'c']
+~~~
+
+
+
+#### 2.2.2 将Reducer和状态字段关联
+
+- 在 LangGraph 中，Reducer 通常通过 Python 的 typing.Annotated 与状态字段进行关联。
+
+- Annotated[] 是 Python 提供的一种类型注解扩展机制，<font color='red'>**用于在原始类型之外附加额外的元数据信息**</font>。需要注意的是，Annotated[] 本身并不规定这些元数据的具体含义，它只负责在类型注解中保留这些信息。
+
+- 严格来说，Annotated 的第一个参数是被注解的原始类型，后续参数是附加的元数据。至于这些元数据表示什么、如何解析，则由使用它的框架或工具自行决定。
+
+- 在 LangGraph 中，框架利用这一机制，将状态字段的类型和 Reducer 规则同时声明在字段定义中。其基本形式如下：
+
+```python
+Annotated[Type, reducer_function]
+```
+
+- 其中：
+
+  - Type：表示状态字段的数据类型；
+
+  - reducer_function：表示该字段对应的 Reducer 函数。
+
+- 示例代码如下：
+
+```python
+from typing import TypedDict, Annotated
+
+class OverAllState(TypedDict):
+    logs: Annotated[list[str], my_reducer]
+    cur_id: str
+```
+
+- 在上述代码中：
+
+  - logs 字段的类型是 list[str]；
+
+  - my_reducer 是与 logs 字段关联的 Reducer 函数；
+
+  - 当多个节点同时更新 logs 字段时，LangGraph 会使用 my_reducer 将多个列表合并；
+
+  - cur_id 字段没有指定 Reducer，因此采用默认更新规则。
+
+
+
+#### 2.2.3 常用内置Reducer函数
+
+- ###### <font color="red">**operator.add**</font>
+
+  - operator.add 是 Python 内置的加法操作函数，底层由 C 实现
+
+  - 它接收两个参数，等价于 a（第一个参数）+ b（第二个参数）
+
+  - 代码如下
+
+  ```python
+  from operator import add
+  
+  print(f"{add(1,2) = }")
+  print(f"{add([1,2], [3,4]) = }")
+  print(f"{add(['a','b'], ['c']) = }")
+  ```
+
+  - 输出如下
+
+  ```bash
+  add(1,2) = 3
+  add([1,2], [3,4]) = [1, 2, 3, 4]
+  add(['a','b'], ['c']) = ['a', 'b', 'c']
+  ```
+
+- <font color="red">**langgraph.graph.message.add_messages**</font>
+
+  - add_messages 是 LangGraph 中专用于合并消息列表的 Reducer 函数，常用于维护对话历史类的状态字段。其函数签名如下
+
+  ~~~python
+  def add_messages(
+      left: Messages,
+      right: Messages,
+      *,
+      format: Literal["langchain-openai"] | None = None,
+  ) -> Messages:
+      ...
+      return merged
+  ~~~
+
+  - 参数说明：
+    - left：状态中已有的消息列表；
+    - right：当前节点返回的消息更新值；
+    - format：可选参数，用于指定返回消息的格式，通常无需手动设置
+
+  - <font color="red">**left 与 right 的类型均为 Messages**</font>。Messages 可以理解为 LangChain 消息对象的列表，其中每个元素都是 BaseMessage 或其子类的实例，常见子类包括：
+
+    - HumanMessage：用户的输入消息；
+    - AIMessage：AI 的回复消息；
+    - SystemMessage：系统提示消息；
+    - ToolMessage：工具调用的结果消息。
+
+  - <font color="red">**add_messages 处理的是对话消息序列，而非普通的字符串列表**</font>
+
+  - BaseMessage 包含一个可选的 id 属性，用于唯一标识一条消息。add_messages 在合并 left 与 right 时，不是简单地执行列表拼接，而是依据消息的 id 进行合并：
+
+    - 若 right 中的某条消息的 id 在 left 中不存在，则将该消息追加到结果列表末尾；
+    - 若 right 中的某条消息的 id 与 left 中已有消息的 id 相同，则使用 right 中的新消息替换 left 中的旧消息。
+
+  - 因此，add_messages 的作用可以概括为：<font color="red">**在保留历史消息的基础上追加新消息，并允许通过相同的消息 id 覆盖已有消息**</font>。
+
+    - 需要特别说明，add_messages 并非简单地对 left 与 right 求“并集”。更准确地说，它是一个基于消息 id 的消息列表合并函数：既支持追加新消息，也支持更新已有消息。
+    - 可以理解为：
+
+    ~~~python
+    merged = left + right
+    ~~~
+
+    - 但若 right 中存在与 left 相同 id 的消息，则最终结果中不会出现重复消息，而是用 right 中的消息覆盖 left 中对应的旧消息
+
+  - 示例代码如下
+
+  ~~~python
+  from langgraph.graph.message import add_messages
+  from langchain.messages import HumanMessage, AIMessage, SystemMessage
+  
+  left = [
+      SystemMessage(content="你是个善解人意的助手", id='1'),
+      HumanMessage(content="你好", id='2'),
+      AIMessage(content="你好~", id='3'),
+  ]
+  
+  right = [
+      HumanMessage(content="我是老王，你是小王", id='2'),
+      AIMessage(content="好的，我记住啦", id='3'),
+      HumanMessage(content="你是谁？", id='4'),
+      AIMessage(content="我是小王", id='5'),
+  ]
+  
+  merged = add_messages(left, right)
+  
+  for msg in merged:
+      print(msg)
+  ~~~
+
+  - 输出如下
+
+  ~~~bash
+  content='你是个善解人意的助手' additional_kwargs={} response_metadata={} id='1'
+  content='我是老王，你是小王' additional_kwargs={} response_metadata={} id='2'
+  content='好的，我记住啦' additional_kwargs={} response_metadata={} id='3' tool_calls=[] invalid_tool_calls=[]
+  content='你是谁？' additional_kwargs={} response_metadata={} id='4'
+  content='我是小王' additional_kwargs={} response_metadata={} id='5' tool_calls=[] invalid_tool_calls=[]
+  ~~~
+
+
+
+#### 2.2.4 默认行为
+
+- 如果某个 State 字段没有显式定义 Reducer，LangGraph 会使用默认的状态更新行为：<font color='red'>**后一次更新值会覆盖该字段原有的状态值。**</font>
+
+- 换句话说，当节点返回的更新结果中包含某个字段时，如果该字段没有配置 Reducer，LangGraph 不会对新旧值进行追加、合并或累加，<font color='red'>**而是直接使用本次返回的新值替换原来的旧值。**</font>
+
+- 示例代码如下：
+
+~~~python
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict
+
+class OverAllState(TypedDict):
+    logs: list[str]
+    id: str
+
+def node_a(state: OverAllState):
+    return {
+        "logs": ["node_a"],
+        "id": "node_a"
+    }
+
+def node_b(state: OverAllState):
+    return {
+        "logs": ["node_b"],
+        "id": "node_b"
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", "node_b")
+builder.add_edge("node_b", END)
+
+graph = builder.compile()
+result = graph.invoke({"logs": ["START"], "id": "start"})
+print('=' * 30, '-> result <-', '=' * 30)
+print(result)
+~~~
+
+- 输出结果
+
+~~~bash
+{'logs': ['node_b'], 'id': 'node_b'}
+~~~
+
+- 可以看到，logs字段和id字段都没有定义Reducer，因此，节点返回的新值会覆盖初始状态中的旧值，图运行结果中的状态值和最后一次更新保持一致
+
+
+
+
+
+
+
+https://xbsheng.github.io/atguigu-note/langgraph/%E8%AF%BE%E4%BB%B6/01-LangGraph%E5%9F%BA%E7%A1%80%E5%85%A5%E9%97%A8#_3-2-3-%E9%BB%98%E8%AE%A4%E8%A1%8C%E4%B8%BA
