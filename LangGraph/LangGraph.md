@@ -24,13 +24,13 @@
   - LangGraph 与 LangChain 的对比
 
 
-  | 对比维度 | LangChain             | LangGraph                                |
-  | -------- | --------------------- | ---------------------------------------- |
-  | 定位     | Agent 高层开发框架    | 底层编排框架 & Agent Runtime             |
-  | 核心入口 | create_agent          | StateGraph / @entrypoint                 |
-  | 适用场景 | 结构直接的 Agent 应用 | 复杂工作流、持久化、长时间运行、人工介入 |
-  | 流程控制 | Agent 循环自动管理    | 精细控制节点、边、条件分支               |
-  | 学习成本 | 较低                  | 较高（但能力上限更高）                   |
+| 对比维度 | LangChain             | LangGraph                                |
+| -------- | --------------------- | ---------------------------------------- |
+| 定位     | Agent 高层开发框架    | 底层编排框架 & Agent Runtime             |
+| 核心入口 | create_agent          | StateGraph / @entrypoint                 |
+| 适用场景 | 结构直接的 Agent 应用 | 复杂工作流、持久化、长时间运行、人工介入 |
+| 流程控制 | Agent 循环自动管理    | 精细控制节点、边、条件分支               |
+| 学习成本 | 较低                  | 较高（但能力上限更高）                   |
 
   - <font color="red">**LangChain 提供易于使用的 Agent 高层抽象，LangGraph 提供可靠、可持久化且可精细控制的底层执行能力**</font>
   - 对于大多数 Agent 项目，从 LangChain 的 create_agent 开始即可；需要复杂工作流编排、确定性步骤与 Agent 步骤混合、长时间运行或底层状态控制时，再引入 LangGraph
@@ -1044,6 +1044,985 @@ print(result)
 ~~~
 
 - 可以看到，logs字段和id字段都没有定义Reducer，因此，节点返回的新值会覆盖初始状态中的旧值，图运行结果中的状态值和最后一次更新保持一致
+
+
+
+## 3、节点中访问State
+
+### 3.1  图节点中读取State
+
+- 在 LangGraph 中，节点本质上是一个可调用对象，通常定义为普通 Python 函数。节点函数被执行时，LangGraph 会自动将当前图运行到该节点时的 State 传入节点函数。
+
+- 节点函数的第一个参数通常是当前运行图的状态对象，也就是 State。
+
+~~~python
+def node(state: StateSchema):
+    ...
+~~~
+
+- 其中，state 表示当前节点执行时可以访问到的全局状态快照。节点可以通过读取 state 中的字段获取上游节点写入的数据，并基于这些数据完成当前节点的业务逻辑。
+- 示例代码如下：
+
+~~~python
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict, Annotated
+from operator import add
+
+class OverAllState(TypedDict):
+    logs: Annotated[list[str], add]
+    id: str
+
+def node_a(state: OverAllState):
+    for k, v in state.items():
+        print(f"k: {k}, v: {v}")
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", END)
+
+graph = builder.compile()
+result = graph.invoke({"logs": ["START"], "id": "start"})
+~~~
+
+- 输出如下：
+
+~~~bash
+k: logs, v: ['START']
+k: id, v: start
+~~~
+
+
+
+### 3.2 图节点更新State
+
+- 在 LangGraph 中，节点函数通常不需要返回更新后的完整状态，只需要返回本节点对状态的局部更新。
+
+- 也就是说，<font color='red'>**节点的返回值可以只包含需要修改的状态字段**</font>
+
+- 对于节点没有返回的字段，LangGraph 会保留其原有状态值；
+- 对于节点返回的字段，<font color='red'>**LangGraph 会根据该字段是否配置了 Reducer 来决定如何合并更新值**</font>
+  - 如果字段配置了 Reducer，则使用对应的 Reducer 函数将旧值和新值合并；
+  - 如果字段没有配置 Reducer，则按照默认规则使用节点返回的新值覆盖原值。
+
+- LangGraph运行时会按照状态字段的Reducer函数将其与当前的最新状态合并。
+
+- 示例代码如下：
+
+```python
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict, Annotated
+from operator import add
+
+class OverAllState(TypedDict):
+    logs: Annotated[list[str], add]
+    id: str
+
+def node_a(state: OverAllState):
+    for k, v in state.items():
+        print(f"k: {k}, v: {v}")
+    return {
+        "logs": ["node_a 更新状态"]
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", END)
+
+graph = builder.compile()
+result = graph.invoke({"logs": ["START"], "id": "start"})
+print('=' * 30, '-> result <-', '=' * 30)
+print(result)
+```
+
+- 输出如下
+
+```bash
+k: logs, v: ['START']
+k: id, v: start
+============================== -> result <- ==============================
+{'logs': ['START', 'node_a 更新状态'], 'id': 'start'}
+```
+
+- 在上述示例中：
+  - logs 字段通过 Annotated[list[str], add] 绑定了 Reducer 函数 operator.add，因此 LangGraph 会将原有的 logs 值和 node_a 返回的新 logs 值进行列表拼接：
+
+```bash
+["START"] + ["node_a 更新状态"]
+```
+
+- 最终得到：
+
+```bash
+["START", "node_a 更新状态"]
+```
+
+- id 字段没有出现在 node_a 的返回值中，因此该字段不会被更新。图运行结束后，输出状态中的 id 仍然保持输入时的值：
+
+```bash
+"id": "start"
+```
+
+- 因此，LangGraph 节点更新 State 的核心规则可以概括为：
+- <font color='red'>**节点只返回需要更新的字段；未返回的字段保持不变；返回的字段根据是否配置 Reducer 决定是合并还是覆盖**</font>
+
+
+
+### 3.3 Overwrite绕过Reducer
+
+- 如果某个状态字段定义了 Reducer，那么节点返回该字段的更新值时，LangGraph 默认会通过对应的 Reducer 将新值与已有状态值进行合并。
+
+- 在某些场景下，可能并不希望继续执行 Reducer 的聚合逻辑，而是希望本次更新直接覆盖旧值。这时可以使用 Overwrite。
+
+- Overwrite 的作用是：<font color='red'>**告诉 LangGraph 本次状态更新不走该字段原本定义的 Reducer，而是直接用新值覆盖状态中的旧值**</font>
+
+- 需要注意的是，<font color='red'>**Overwrite 只影响当前这一次更新，并不会修改状态字段本身的 Reducer 定义。后续节点如果继续正常返回该字段的更新值，仍然会按照原来的 Reducer 逻辑进行合并**</font>
+
+- 示例代码如下：
+
+~~~python
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import Overwrite
+from typing import TypedDict, Annotated
+from operator import add
+
+class OverAllState(TypedDict):
+    logs: Annotated[list[str], add]
+    id: str
+
+def node_a(state: OverAllState):
+    return {
+        "logs": ["node_a"],
+        "id": "node_a"
+    }
+
+def node_b(state: OverAllState):
+    return {
+        "logs": Overwrite(["node_b"]),
+        "id": "node_b"
+    }
+
+def node_c(state: OverAllState):
+    return {
+        "logs": ["node_c"],
+        "id": "node_c"
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_node("node_c", node_c)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", "node_b")
+builder.add_edge("node_b", "node_c")
+builder.add_edge("node_c", END)
+
+graph = builder.compile()
+result = graph.invoke({"logs": ["START"], "id": "start"})
+print('=' * 30, '-> result <-', '=' * 30)
+print(result)
+~~~
+
+- 输出如下
+
+~~~bash
+{'logs': ['node_b', 'node_c'], 'id': 'node_c'}
+~~~
+
+- 上述代码中：
+  - logs 字段绑定了 operator.add() 函数
+    - 如果没有 Overwrite，则最终输出的 logs 的值应为 ['START', 'node_a', 'node_b', 'node_c']
+    - node_b 返回更新时，用 Overwrite 包裹了 logs 字段的值，那么当前状态的 logs 会被 ["node_b"] 覆盖，因此最终输出的 logs 字段值变成了 ['node_b', 'node_c']
+  - id 字段按照默认行为，保留最后一次更新的值
+
+
+
+## 4、Multi Schema用法
+
+### 4.1 状态类型
+
+- LangGraph 支持在一个图中使用多个状态 Schema，用于区分图的外部输入、外部输出、内部共享状态以及节点间的临时状态。
+
+- 常见状态类型可以分为以下几类：
+  - <font color='red'>**全局状态 / 内部状态**</font>：图内部主要使用的状态，创建 StateGraph 时传递给 state_schema 参数。它通常包含图运行过程中需要读写的大部分字段。
+  - <font color='red'>**输入状态**</font>：图对外接收输入时使用的状态，创建 StateGraph 时传递给 input_schema 参数。它用于约束调用图时允许传入哪些字段。
+  - <font color='red'>**输出状态**</font>：图最终对外返回结果时使用的状态，创建 StateGraph 时传递给 output_schema 参数。它用于约束图运行结束后只返回哪些字段。
+  - <font color='red'>**私有状态**</font>：图内部节点之间传递的临时状态，通常不作为图的输入，也不作为图的最终输出。它可以通过节点函数的入参类型注解声明，并在节点返回值中写入。
+
+- 需要注意，输入状态和输出状态主要面向图的边界，即“图如何接收外部输入”和“图如何返回外部结果”；而全局状态和私有状态主要面向图内部节点之间的数据传递
+
+
+
+### 4.2 状态之间的关系
+
+#### 4.2.1 设计规范
+
+- 本节主要说明 LangGraph 状态设计中的规范。以下规则属于工程上的最佳实践，违反这些规范未必一定导致程序报错，但容易降低代码的可读性和可维护性。
+
+  - 1、<font color='red'>**输入状态和输出状态通常应是全局状态的子集**</font>，输入状态描述图对外需要接收的数据，输出状态描述图最终需要返回的数据。通常情况下，<font color='red'>**它们都应该是全局状态的一部分**</font>。 如：
+
+    - 其中，InputState 和 OutputState 的所有字段均存在于 OverAllState 中
+
+    ~~~python
+    class InputState(TypedDict):
+        username: str
+    
+    class OutputState(TypedDict):
+        graph_output: str
+    
+    class OverAllState(TypedDict):
+        username: str
+        nickname: str
+        graph_output: str
+    ~~~
+
+  - 2、<font color='red'>**私有状态和全局状态应尽量避免字段重名**</font>，私有状态的定位是图内部某些节点之间传递的临时字段。如果私有状态字段和全局状态字段重名，虽然某些情况下程序仍然可以运行，但容易让人误以为该字段是全局共享字段，从而造成理解混乱。 因此，推荐让私有状态字段和全局状态字段保持清晰边界
+
+  - 3、<font color='red'>**节点函数应明确声明入参状态类型和返回状态类型**</font>，节点函数的第一个参数通常是当前节点可读取的状态。通过类型注解声明该参数，可以明确表达该节点需要读取哪些字段。 同时，给节点函数声明返回状态类型，也可以帮助阅读者理解该节点会更新哪些字段。 例如
+
+  ~~~python
+  def node_1(state: InputState) -> OverAllState:
+      return {
+          "nickname": "Dear " + state["username"]
+      }
+  ~~~
+
+  - 4、<font color='red'>**节点函数中不应该访问入参状态类型中不存在的字段**</font>， 节点实际接收到的状态会按照其入参类型进行裁剪。因此，如果节点入参声明为 InputState，就不应该在节点内部访问 InputState 中不存在的字段。
+
+    - 例如：
+
+    ~~~python
+    def node_1(state: InputState) -> OverAllState:
+        return {
+            "nickname": state["username"]
+        }
+    ~~~
+
+    - 如果在该函数中访问：
+
+    ~~~bash
+    state["nickname"]
+    ~~~
+
+    - 而 nickname 不属于 InputState，运行时就可能抛出 KeyError
+
+  - 5、<font color='red'>**节点函数返回的字典应尽量和返回类型注解保持一致**</font>， 从 Python 类型注解的角度看，函数返回类型只是静态提示，运行时不会自动强制校验。 从 LangGraph 的运行机制看，节点返回的是对状态的部分更新，不是完整状态。只要返回字段已经被图记录为可用状态字段，LangGraph 就可以将其作为状态更新处理。 不过，从工程规范上讲，节点返回字典中的字段最好和函数返回类型注解保持一致，这样更利于阅读、调试和维护
+
+
+
+  #### 4.2.2 源码层面的约束
+
+##### 4.2.2.1 状态的记录
+
+- LangGraph 的状态并不是简单保存在一个普通字典中，而是会被拆分成多个可读写的状态字段。每个状态字段在底层通常对应一个 Channel。
+
+- 这些状态字段会在不同阶段被记录到状态图中。
+  - StateGraph 记录状态字段的核心方法是 _add_schema()，_add_schema() 会解析传入的状态 Schema，并将其中声明的字段记录到图中，使这些字段成为图运行时可以读写的状态字段。
+  
+    - <font color='red'>**创建 StateGraph 时，会记录 state_schema、input_schema 和 output_schema 中的字段**</font> 当创建状态图时：
+  
+    ~~~python
+    builder = StateGraph(
+        OverAllState,
+        input_schema=InputState,
+        output_schema=OutputState
+    )
+    ~~~
+  
+    - LangGraph 会解析这些 Schema，并将其中涉及的字段加入图的状态管理体系。
+  - <font color='red'>**调用 add_node() 添加节点时，也可能记录节点入参声明的状态**</font> Schema 当添加节点时，LangGraph 会根据节点函数第一个参数的类型注解推断该节点的输入状态类型。 如果这个输入状态类型之前没有被图记录过，LangGraph 也会通过 _add_schema() 将其加入图中。 这也是私有状态能够生效的原因。
+  
+    -  例如：
+  
+    ~~~python
+    class PrivateState(TypedDict):
+        greeting: str
+    
+    def node_3(state: PrivateState) -> OutputState:
+        return {
+            "graph_output": state["greeting"]
+        }
+    ~~~
+  
+    - 当 node_3 被添加到图中时，PrivateState 中的 greeting 字段会被记录到图中，从而成为图内部可以传递的状态字段。
+  
+- 总结
+
+  - <font color='red'>**全局状态、输入状态、输出状态通常在创建 StateGraph 时被记录**</font>
+  - <font color='red'>**私有状态通常在调用 add_node() 添加节点时，根据节点入参类型注解被记录**</font>
+  - <font color='red'>**被记录后的状态字段，底层会成为图运行时可以读写的状态字段**</font>
+
+
+
+##### 4.2.2.2 状态的访问
+
+- 1、调用图时，输入会按照 input_schema 进行约束 当调用图时：
+
+  ```python
+  graph.invoke({"username": "小黄"})
+  ```
+
+  - 如果创建图时声明了 input_schema，那么外部输入会按照 input_schema 进行约束。 如果没有声明 input_schema，则通常按照 state_schema 作为图的输入 Schema。 因此，input_schema 的作用不是“只让第一个节点可见”，<font color="red">**而是约束图的外部输入结构**</font>。 此处的约束是指：按照 schema 裁剪输入，只保留 schema 中出现的状态字段
+
+- 2、节点接收到的状态会按照节点入参类型进行裁剪 每个节点能读取哪些字段，主要取决于该节点第一个参数的类型注解。 例如：
+
+  ```python
+  def node_1(state: InputState) -> OverAllState:
+      ...
+  ```
+
+  - 此时，node_1 接收到的 state 会按照 InputState 进行裁剪。即使图的全局状态中还有其他字段，node_1 也不应该访问不属于 InputState 的字段。 如果访问了入参状态中不存在的字段，例如：
+
+  ~~~python
+  state["nickname"]
+  ~~~
+
+  - 就可能抛出：
+
+  ```python
+  KeyError
+  ```
+
+- 3、节点返回的是状态更新，而不是完整状态 节点函数不需要返回完整状态，只需要返回本节点想要更新的字段。 例如：
+
+  ```python
+  def node_1(state: InputState) -> OverAllState:
+      return {
+          "nickname": "Dear " + state["username"]
+      }
+  4
+  ```
+
+  - 这里虽然返回类型注解是 OverAllState，但函数实际只返回了 nickname 一个字段。这是允许的，因为 LangGraph 会把节点返回值视为对状态的部分更新
+
+- 4、节点返回值的应用主要由字段名称和图中已记录的状态字段决定 节点返回的字典会根据字段名称写入对应状态字段，并按照该字段的 Reducer 规则进行合并。 需要注意的是，函数返回类型注解主要用于表达代码意图，不是严格的运行时写入边界。 也就是说，如果某个字段已经被图记录为可用状态字段，那么节点即使没有在返回类型注解中声明该字段，也可能仍然可以返回并更新它。 不过，为了代码清晰，仍然推荐让节点的返回值和返回类型注解保持一致。
+
+- 5、最终输出会按照 output_schema 进行裁剪 图运行完成后，最终返回给外部调用方的结果会按照 output_schema 进行裁剪。 因此，output_schema 的作用不是“只让最后一个节点可见”，<font color="red">**而是约束图最终对外暴露哪些字段**</font>。 例如，图内部状态中可能同时存在：
+
+  ```python
+  username
+  nickname
+  greeting
+  graph_output
+  ```
+
+  - 但如果 output_schema 只包含：
+
+  ```python
+  graph_output
+  ```
+
+  - 那么最终 graph.invoke() 的返回结果就只会包含 graph_output。
+
+
+
+##### 4.2.2.3 案例
+
+~~~python
+from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+
+class InputState(TypedDict):
+    username: str
+
+class OutputState(TypedDict):
+    graph_output: str
+
+class OverAllState(TypedDict):
+    nickname: str
+    username: str
+    graph_output: str
+
+class PrivateState(TypedDict):
+    greeting: str
+
+def node_1(state: InputState) -> OverAllState:
+    # 向全局状态写入数据
+    return {
+        "nickname": "Dear " + state["username"]
+    }
+
+def node_2(state: OverAllState) -> PrivateState:
+    # 从全局状态读取数据，写入私有状态
+    return {
+        "greeting": state["nickname"] + ", 早上好~"
+    }
+
+def node_3(state: PrivateState) -> OutputState:
+    # 从私有状态读取数据，写入输出状态
+    return {
+        "graph_output": state["greeting"] + " 很高兴认识你！"
+    }
+
+builder = StateGraph(OverAllState,input_schema=InputState,output_schema=OutputState)
+builder.add_node("node_1", node_1)
+builder.add_node("node_2", node_2)
+builder.add_node("node_3", node_3)
+builder.add_edge(START, "node_1")
+builder.add_edge("node_1", "node_2")
+builder.add_edge("node_2", "node_3")
+builder.add_edge("node_3", END)
+
+graph = builder.compile()
+print(graph.invoke({"username":"小黄"}))
+~~~
+
+- 输出
+
+~~~bash
+{ "graph_output": "Dear 小黄, 早上好~ 很高兴认识你！" }
+~~~
+
+
+
+##### 4.2.2.4 案例分析
+
+- 输入状态
+
+  - <font color="red">**InputState 用于约束图的外部输入**</font>
+
+  ~~~python
+  class InputState(TypedDict):
+      username: str
+  ~~~
+
+  - 因此调用图时，只需要传入：
+
+  ~~~python
+  {"username": "小黄"}
+  ~~~
+
+- 全局状态
+
+  - <font color="red">**OverAllState 是图内部主要使用的状态 Schema**</font>
+
+  ~~~python
+  class OverAllState(TypedDict):
+      username: str
+      nickname: str
+      graph_output: str
+  ~~~
+
+  - 其中：
+    - username 来自图的输入；
+    - nickname 由 node_1 写入；
+    - graph_output 由 node_3 写入，并最终作为图的输出返回
+
+- 私有状态
+
+  - <font color="red">**PrivateState 用于节点之间传递临时数据**</font>
+
+  ~~~python
+  class PrivateState(TypedDict):
+      greeting: str
+  ~~~
+
+  - 在本例中：node_2 写入了 greeting 字段
+
+  ~~~python
+  def node_2(state: OverAllState) -> PrivateState:
+      return {
+          "greeting": state["nickname"] + ", 早上好~"
+      }
+  ~~~
+
+  - 随后：node_3 通过 PrivateState 读取 greeting 字段，并生成最终输出
+
+  ~~~python
+  def node_3(state: PrivateState) -> OutputState:
+      return {
+          "graph_output": state["greeting"] + " 很高兴认识你！"
+      }
+  ~~~
+
+- 输出状态
+
+  - <font color="red">**OutputState 用于约束图最终返回给外部调用方的数据**</font>
+
+  ~~~python
+  class OutputState(TypedDict):
+      graph_output: str
+  ~~~
+
+  - 虽然图内部运行过程中还存在 username、nickname、greeting 等字段，但最终结果只返回
+
+  ~~~python
+  { "graph_output": "Dear 小黄, 早上好~ 很高兴认识你！" }
+  ~~~
+
+  - 这是因为图创建时声明了
+
+  ~~~python
+  output_schema=OutputState
+  ~~~
+
+  - 所以最终输出会按照 OutputState 进行裁剪
+
+
+
+## 5、预定义状态
+
+### 5.1 MessagesState
+
+- LangGraph 构建的计算图通常会和 LLM 结合使用，而 LLM 在运行过程中通常需要维护一组消息列表。为了提升开发效率，<font color="red">**LangGraph 官方提供了一个预定义状态类型：langgraph.graph.message.MessagesState。**</font>
+
+- 开发者可以直接继承该状态类型，并在其基础上扩展自定义状态字段。
+
+- 源码如下：
+
+```python
+class MessagesState(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+```
+
+- 由此可知，MessagesState 只有一个字段：messages。
+
+- 该字段的类型是列表，元素类型为 AnyMessage；同时，它通过 Annotated 绑定了内置 Reducer 函数 add_messages。
+  - add_messages 的完全限定名（英文全称 fully qualified name）
+  - langgraph.graph.message.add_messages，正是上文介绍的内置 Reducer 函数
+
+~~~python
+import os
+
+from langchain.chat_models import init_chat_model
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import MessagesState
+from langchain.messages import HumanMessage
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
+API_KEY=os.getenv("API_KEY")
+BASE_URL=os.getenv("BASE_URL")
+AI_MODEL=os.getenv("AI_MODEL")
+
+model = init_chat_model(
+    base_url=BASE_URL,
+    model_provider="openai",
+    api_key=API_KEY,
+    model=AI_MODEL
+)
+
+class OverAllState(MessagesState):
+    username: str
+    output: str
+
+def node_a(state: OverAllState) -> OverAllState:
+    return {
+        "messages": [HumanMessage("你好，我是 " + state["username"])]
+    }
+
+def llm_node(state: OverAllState) -> OverAllState:
+    res = model.invoke(state["messages"])
+
+    return {
+        "messages": [res],
+        "output": res.content
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("llm_node", llm_node)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", "llm_node")
+builder.add_edge("llm_node", END)
+
+graph = builder.compile()
+response = graph.invoke({"username": "小黄"})
+print(response)
+~~~
+
+- 输出
+
+~~~json
+{
+    "messages": [
+        HumanMessage(
+            content="你好，我是 小黄",
+            additional_kwargs={},
+            response_metadata={},
+            id="155e1ef4-5bbc-4250-b978-62a7a5918cef",
+        ),
+        AIMessage(
+            content="你好呀，小黄！😊 我是DeepSeek，很高兴认识你！有什么我可以帮你的吗？无论是聊天、解答问题、帮你写作、编程，还是其他任何需要，尽管告诉我吧！你名字里的“黄”是哪个黄呀？😄",
+            additional_kwargs={
+                "refusal": "None",
+            },
+            response_metadata={
+                "token_usage": {
+                    "completion_tokens": 57,
+                    "prompt_tokens": 10,
+                    "total_tokens": 67,
+                    "completion_tokens_details": "None",
+                    "prompt_tokens_details": {
+                        "audio_tokens": "None",
+                        "cached_tokens": 0,
+                    },
+                    "prompt_cache_hit_tokens": 0,
+                    "prompt_cache_miss_tokens": 10,
+                },
+                "model_provider": "deepseek",
+                "model_name": "deepseek-v4-flash",
+                "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402",
+                "id": "17d57633-2ffb-4af3-be87-b3d58f9acd2b",
+                "finish_reason": "stop",
+                "logprobs": "None",
+            },
+            id="lc_run--019e6890-4544-7212-b4f2-aa20fc079911-0",
+            tool_calls=[],
+            invalid_tool_calls=[],
+            usage_metadata={
+                "input_tokens": 10,
+                "output_tokens": 57,
+                "total_tokens": 67,
+                "input_token_details": {
+                    "cache_read": 0,
+                },
+                "output_token_details": {},
+            },
+        ),
+    ],
+    "username": "小黄",
+    "output": "你好呀，小黄！😊 我是DeepSeek，很高兴认识你！有什么我可以帮你的吗？无论是聊天、解答问题、帮你写作、编程，还是其他任何需要，尽管告诉我吧！你名字里的“黄”是哪个黄呀？😄",
+}
+~~~
+
+- 上述案例中，OverAllState 继承了 MessagesState，因此可用的状态字段为
+
+  ```python
+  messages
+  username
+  output
+  ```
+
+  - 只关注 messages 状态，执行流程如下：
+
+    - node_a 返回一条 HumanMessage；
+
+    - LangGraph 使用 add_messages 将该消息合并到 messages 状态字段中；
+
+    - llm_node 从 state["messages"] 中读取完整消息列表，并调用模型；
+
+    - llm_node 将模型生成的 AIMessage 作为状态更新返回；
+
+    - LangGraph 再次通过 add_messages 将 AIMessage 合并到 messages 中；
+
+    - 最终状态中包含完整消息列表。
+
+  - <font color='red'>**MessagesState 帮开发者预先定义好了 messages 字段及其合并规则**</font>。在构建聊天机器人、Agent、工具调用流程、多轮对话流程时，它可以提升开发效率。
+
+
+
+### 5.2 AgentState
+
+- AgentState 是 LangChain Agent 内部使用的状态类型。由于 LangChain Agent 底层也是基于 LangGraph 运行图构建的，所以从技术上讲，开发者也可以将 AgentState 或其子类作为自定义 LangGraph 的状态类型。
+- AgentState 的全类名，也可以称为类的完全限定名（英文全称： fully qualified class name）是：langchain.agents.middleware.types.AgentState
+
+- 源码如下
+
+```python
+class AgentState(TypedDict, Generic[ResponseT]):
+    """State schema for the agent."""
+
+    messages: Required[Annotated[list[AnyMessage], add_messages]]
+    jump_to: NotRequired[Annotated[JumpTo | None, EphemeralValue, PrivateStateAttr]]
+    structured_response: NotRequired[Annotated[ResponseT, OmitFromInput]]
+```
+
+- 该状态中主要包含三个字段
+
+  - <font color='red'>**messages：用于存储 Agent 运行过程中的消息列表**</font>
+
+    ~~~python
+    messages: Required[Annotated[list[AnyMessage], add_messages]]
+    ~~~
+
+    - 字段和 MessagesState 中的 messages 字段类似，也使用 add_messages 作为 Reducer
+
+  - <font color='red'>**jump_to：LangChain Agent 内部使用的控制字段，主要服务于 Agent 中间件体系**</font>
+
+    ~~~python
+    jump_to: NotRequired[Annotated[JumpTo | None, EphemeralValue, PrivateStateAttr]]
+    ~~~
+
+    - 它通常用于表示运行流程的跳转意图，例如某些中间件希望影响 Agent 后续应该进入哪个节点。
+    - 需要注意的是，jump_to 并不是普通 LangGraph 状态图中的通用跳转机制。
+    - 在自定义 StateGraph 中，即使状态中定义了 jump_to 字段，LangGraph 也不会因为该字段的值自动跳转到某个节点。普通 LangGraph 运行图如果需要控制后续流向，通常应使用
+
+    ~~~python
+    Command(goto="node_name")
+    ~~~
+
+  - <font color='red'>**structured_response：用于存储 Agent 最终生成的结构化输出**</font>
+
+    ~~~python
+    structured_response: NotRequired[Annotated[ResponseT, OmitFromInput]]
+    ~~~
+
+    - 当使用 LangChain Agent 的结构化输出能力时，例如指定 response_format，Agent 最终生成的结构化结果通常会被写入该字段。
+    - 其中，OmitFromInput 表示该字段不应作为外部输入字段暴露给调用方，而是由 Agent 运行过程中内部生成。
+    - 总体来看，AgentState 是专门为 LangChain Agent 运行时设计的状态类型。
+    - 因此，在普通自定义 LangGraph 项目中，一般不建议直接基于 AgentState 扩展图状态
+
+
+
+# 四、控制流
+
+## 1、顺序结构
+
+### 1.1 add_edge
+
+- <font color='red'>**add_edge 用于在两个节点之间添加一条有向边**</font>。边是图结构中最基本的元素之一，节点之间的执行顺序、分支跳转以及循环控制，最终都依赖节点和边共同表达。
+
+- 因此，在 LangGraph 中，<font color='red'>**基础的控制流结构都可以通过 add_edge进行构建**</font>
+
+~~~python
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict
+
+class OverAllState(TypedDict):
+    username: str
+    greeting: str
+    output: str
+
+def node_a(state: OverAllState) -> OverAllState:
+    return {
+        "greeting": "Dear " + state["username"]
+    }
+
+def node_b(state: OverAllState) -> OverAllState:
+    return {
+        "output": state["greeting"] + "，你好！"
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", "node_b")
+builder.add_edge("node_b", END)
+
+graph = builder.compile()
+res = graph.invoke({"username": "小黄"})
+print(res)
+
+raw_mermaid = graph.get_graph().draw_mermaid()
+print(raw_mermaid)
+~~~
+
+- 输出
+
+~~~python
+{'username': '小黄', 'greeting': 'Dear 小黄', 'output': 'Dear 小黄，你好！'}
+~~~
+
+~~~mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	node_a(node_a)
+	node_b(node_b)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> node_a;
+	node_a --> node_b;
+	node_b --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+~~~
+
+- 在上述示例中，图的执行流程如下：
+
+  ```python
+  START -> node_a -> node_b -> END
+  ```
+
+  - 其中：
+
+    - **START -> node_a** 表示图从 node_a 开始执行；
+
+    - **node_a -> node_b** 表示 node_a 执行完成后，继续执行 node_b；
+
+    - **node_b -> END** 表示 node_b 执行完成后，图进入结束状态
+
+
+
+### 1.2 add_sequence
+
+- <font color='red'>**如果需要构建一组按顺序执行的节点**</font>，也可以使用 **add_sequence**。
+
+- **add_sequence** 支持传入一个可执行对象列表。LangGraph 会按照列表顺序依次添加节点，并在相邻节点之间自动添加边。默认情况下，函数名会被用作节点名称。
+
+- **示例如下：**
+
+```graph TD;
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict
+
+class OverAllState(TypedDict):
+    username: str
+    greeting: str
+    output: str
+
+def node_a(state: OverAllState) -> OverAllState:
+    return {
+        "greeting": "Dear " + state["username"]
+    }
+
+def node_b(state: OverAllState) -> OverAllState:
+    return {
+        "output": state["greeting"] + "，你好！"
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_edge(START, "node_a")
+builder.add_sequence([node_a, node_b])
+builder.add_edge("node_b", END)
+
+graph = builder.compile()
+res = graph.invoke({"username": "小黄"})
+print(res)
+
+raw_mermaid = graph.get_graph().draw_mermaid()
+print(raw_mermaid)
+```
+
+- 输出如下
+
+```json
+{
+  "username": "小黄",
+  "greeting": "Dear 小黄",
+  "output": "Dear 小黄，你好！"
+}
+```
+
+~~~mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	node_a(node_a)
+	node_b(node_b)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> node_a;
+	node_a --> node_b;
+	node_b --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+~~~
+
+- 上述代码中：
+
+```python
+builder.add_sequence([node_a, node_b])
+```
+
+- 大致等价于：
+
+```python
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_edge("node_a", "node_b")
+```
+
+- 因此，完整执行流程仍然是：
+
+```python
+START -> node_a -> node_b -> END
+```
+
+- 相比手动调用多次 **add_node** 和 **add_edge**，**add_sequence** 更适合用于构建简单的线性执行流程。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
