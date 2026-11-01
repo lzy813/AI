@@ -1855,7 +1855,7 @@ graph TD;
 
 - **示例如下：**
 
-```graph TD;
+```python
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict
 
@@ -1935,9 +1935,96 @@ START -> node_a -> node_b -> END
 
 
 
+### 1.3 省略指向END的边
 
+- 在 LangGraph 中，<font color='red'>**图的终止并不完全依赖某个真实执行的特殊节点**</font>
 
+- 从运行机制上看，LangGraph 会在每个 **SuperStep** 开始时，根据当前发生更新的 **Channel** 以及节点之间的触发关系，计算本轮需要执行的任务列表。<font color='red'>**如果没有新的节点被激活，也就没有新的任务需要执行，图运行自然结束**</font>
 
+- 需要注意的是，<font color='red'>**END 并不是运行阶段真正执行的节点**</font>。也就是说，指向 **END** 的边不会像指向普通节点的边那样，触发一个真实的节点任务。它更多用于表达图结构中的“终止语义”：当前路径执行到这里即可结束。
+
+- 因此，在一些简单的线性流程中，即使省略指向 **END** 的边，最后一个节点执行完成后，如果没有后续节点被触发，图也可以正常结束。
+
+- 示例如下：
+
+```python
+from langgraph.graph import StateGraph, START
+from typing import TypedDict
+
+class OverAllState(TypedDict):
+    username: str
+    greeting: str
+    output: str
+
+def node_a(state: OverAllState) -> OverAllState:
+    return {
+        "greeting": "Dear " + state["username"]
+    }
+
+def node_b(state: OverAllState) -> OverAllState:
+    return {
+        "output": state["greeting"] + "，你好！"
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", "node_b")
+
+graph = builder.compile()
+res = graph.invoke({"username": "小黄"})
+print(res)
+
+raw_mermaid = graph.get_graph().draw_mermaid()
+print(raw_mermaid)
+```
+
+- 输出如下
+
+```json
+{
+  "username": "小黄",
+  "greeting": "Dear 小黄",
+  "output": "Dear 小黄，你好！"
+}
+```
+
+~~~mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	node_a(node_a)
+	node_b(node_b)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> node_a;
+	node_a --> node_b;
+	node_b --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+~~~
+
+- 在这个例子中，虽然没有显式添加：
+
+  ~~~python
+  builder.add_edge("node_b", END)
+  ~~~
+
+  - 但是 **node_b** 执行完成后，没有新的节点被触发，图运行会自然结束。
+
+  - 不过，<font color='red'>**可以省略指向 END 的边，并不表示 END 没有意义**</font>
+
+  - 显式添加 **END** 边可以让图结构更加完整，也能更清晰地表达“流程到此结束”的语义。尤其是在分支、条件跳转、循环退出等场景中，显式指向 **END** 通常更利于阅读和维护。
+
+  - 和 **END** 不同，<font color='red'>**START 通常不能省略**</font>。因为 **START** 不只是一个语义上的起点标记，它还用于告诉 LangGraph：图运行时应当从哪些节点开始执行。也就是说，下面这条边是启动图执行的关键：
+
+  ~~~python
+  builder.add_edge(START, "node_a")
+  ~~~
+
+  - 如果没有从 **START** 出发的边，或者没有通过其他方式指定入口节点，LangGraph 就无法确定图的初始执行节点。
+
+- 因此，在实际开发中，建议保留指向 **END** 的边。虽然在某些简单流程中省略这些边也能正常运行，但显式添加它们，可以让图结构更加完整、语义更加清晰，便于后续维护。
 
 
 
