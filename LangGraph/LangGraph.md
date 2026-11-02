@@ -2028,35 +2028,746 @@ graph TD;
 
 
 
+## 2、分支结构
+
+### 2.1 静态分布
 
+- **定义**：节点的下游候选节点 <font color='red'>**在图编译阶段就完全确定**</font>，只是运行时根据条件选择哪条边执行。
+- 特点：
+  - 下游节点集合固定，数量、目标在编译时确定
+  - 运行时可选择**一个或多个**下游目标
+  - 可以用来做条件分支，但不生成新的节点
+
+⚡ 核心判断：
+
+> **编译期知道下游集合 → 静态分支**
+
+
+
+#### 2.1.1 并行节点
+
+- 并行节点是最简单的静态分支形式。
+
+- 当多个节点都从同一个上游节点触发时，它们会在同一个**超步**被激活。典型写法如下：
+
+~~~python
+builder.add_edge(START, "node_a")
+builder.add_edge(START, "node_b")
+~~~
+
+- 示例
+
+~~~python
+import os
+from typing import TypedDict
 
+from langchain.chat_models import init_chat_model
+from langgraph.graph import StateGraph, START, END
+from langchain.messages import HumanMessage
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
+CHAT_API_KEY=os.getenv("CHAT_API_KEY")
+CHAT_BASE_URL=os.getenv("CHAT_BASE_URL")
+CHAT_MODEL=os.getenv("CHAT_MODEL")
+
+model = init_chat_model(
+    base_url=CHAT_BASE_URL,
+    model_provider="openai",
+    api_key=CHAT_API_KEY,
+    model=CHAT_MODEL
+)
+
+class OverAllState(TypedDict):
+    topic: str
+    poem: str
+    joke: str
+
+def node_a(state: OverAllState) -> OverAllState:
+    poem = model.invoke(
+        [
+            HumanMessage(f"写一首关于 {state['topic']} 的七言绝句")
+        ]
+    ).content
+    return {
+        "poem": poem
+    }
+
+def node_b(state: OverAllState) -> OverAllState:
+    joke = model.invoke(
+        [
+            HumanMessage(f"写一个关于 {state['topic']} 的笑话")
+        ]
+    ).content
+    return {
+        "joke": joke
+    }
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_edge(START, "node_a")
+builder.add_edge(START, "node_b")
 
+builder.add_edge("node_a", END)
+builder.add_edge("node_b", END)
 
+graph = builder.compile()
+res = graph.invoke({"topic": "猫咪"})
+print(res)
 
+raw_mermaid = graph.get_graph().draw_mermaid()
+print(raw_mermaid)
+~~~
 
+- 输出：
 
+~~~json
+{
+  "topic": "猫咪",
+  "poem": "《猫》\n花间小憩一身绒，\n忽逐飞虫入院中。\n夜半双眸明似月，\n轻身跳上屋檐东。",
+  "joke": "我家猫最近总盯着我看，我以为它终于要表达爱意了。结果它伸出爪子，把我的水杯慢慢推到桌边，然后一脸平静地看着我。\n\n我赶紧接住水杯，它叹了口气，又推了一次。\n\n我问：“你到底想干嘛？”\n\n它说：“我在测试你。结果发现，你比我想的更适合当仆人。”"
+}
+~~~
 
+~~~mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	node_a(node_a)
+	node_b(node_b)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> node_a;
+	__start__ --> node_b;
+	node_a --> __end__;
+	node_b --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+~~~
+
+- 上述案例中，**node_a** 和 **node_b** 都由 **START** 触发。图运行时，二者会在**同一个超步中**被调度，它们各自读取当前状态并独立执行。
+- 需要注意的是：
+  - 这里的“并行”主要指**调度语义上的并行**；两个节点之间没有先后依赖；
+  - 它们的输出会在当前**超步**执行完成后统一合并到状态中；
+  - 如果两个节点写入同一个状态字段，则该字段通常需要配置合适的 **Reducer**，否则可能出现状态更新冲突，抛出 **InvalidUpdateError** 异常
+
 
+
+#### 2.1.2 条件分支
 
+- **StateGraph** 提供了 **add_conditional_edges** 方法，用于从某个上游节点出发，根据运行时状态选择下游节点。
+
+- 方法签名如下
 
+```python
+def add_conditional_edges(
+    self,
+    source: str,
+    path: Callable[..., Hashable | Sequence[Hashable]]
+    | Callable[..., Awaitable[Hashable | Sequence[Hashable]]]
+    | Runnable[Any, Hashable | Sequence[Hashable]],
+    path_map: dict[Hashable, str] | list[str] | None = None,
+) -> Self:
+```
+
+- 不考虑 **self**，核心参数有三个：
+  - <font color='red'>**source**</font>：条件分支的起始节点；
+  - <font color='red'>**path**</font>：路由规则，是一个可执行对象，通常是函数
+  - <font color='red'>**path_map**</font>：路由规则的返回值到真实节点名之间的映射关系。
+
+- 其中，**path** 的返回值表示跳转的目标节点，可以是：
+  - 字符串或特殊对象 **END** 表示的单个目标；
+  - 字符串或特殊对象 **END** 表示的多个目标组成的序列；
+
+- **path_map**
+
+  - 可以省略，即取默认值 **None**，此时 **path** 返回值中出现的字符串必须是合法的节点名称。
+  - 可以是字典，维护 **path** 返回值和真实节点的映射。
+  - 也可以是列表，如下
+
+  ~~~python
+  path_map=["node_a", "node_b", "node_c"]
+  ~~~
+
+  - 相当于
+
+  ```python
+  path_map={
+      "node_a": "node_a",
+      "node_b": "node_b",
+      "node_c": "node_c",
+  }
+  ```
+
+  - 此时也要求 **path** 返回值中出现的字符串必须是合法的节点名称
+
+
+
+##### 2.1.2.1 不使用path_map
+
+- 如果不传 **path_map**，那么路由函数的返回值通常应当直接是图中的节点名称。如下
+
+```python
+def router(state: OverAllState) -> Literal["node_a", "node_b"]: 
+    if "诗" in state["content_type"]: 
+        return "node_a" 
+    return "node_b"
+```
+
+- 此时，**router** 返回的 **"node_a"** 和 **"node_b"** 必须能够直接对应图中已经注册的节点名
+
+~~~python
+import os
+from typing import TypedDict, Literal
+
+from langchain.chat_models import init_chat_model
+from langgraph.graph import StateGraph, START, END
+from langchain.messages import HumanMessage
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
+CHAT_API_KEY=os.getenv("CHAT_API_KEY")
+CHAT_BASE_URL=os.getenv("CHAT_BASE_URL")
+CHAT_MODEL=os.getenv("CHAT_MODEL")
+
+model = init_chat_model(
+    base_url=CHAT_BASE_URL,
+    model_provider="openai",
+    api_key=CHAT_API_KEY,
+    model=CHAT_MODEL
+)
+
+class OverAllState(TypedDict):
+    topic: str
+    content_type: str
+    poem: str
+    joke: str
+
+def node_a(state: OverAllState) -> OverAllState:
+    poem = model.invoke([HumanMessage(f"写一首关于 {state['topic']} 的七言绝句")]).content
+
+    return {
+        "poem": poem
+    }
+
+def node_b(state: OverAllState) -> OverAllState:
+    joke = model.invoke([HumanMessage(f"写一个关于 {state['topic']} 的笑话")]).content
+
+    return {
+        "joke": joke
+    }
+
+def router(state: OverAllState) -> Literal["node_a", "node_b"]:
+    if "诗" in state["content_type"]:
+        return "node_a"
+    return "node_b"
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_conditional_edges(START, router)
+builder.add_edge("node_a", END)
+builder.add_edge("node_b", END)
+
+graph = builder.compile()
+poem_res = graph.invoke({"topic": "布偶狗", "content_type": "诗"})
+joke_res = graph.invoke({"topic": "布偶狗", "content_type": "笑话"})
+
+print('=' * 30, '-> poem_res <-', '=' * 30)
+print(poem_res)
+print('=' * 30, '-> joke_res <-', '=' * 30)
+print(joke_res)
+
+raw_mermaid = graph.get_graph().draw_mermaid()
+print(raw_mermaid)
+~~~
+
+- 输出
+
+~~~text
+============================== -> poem_res <- ==============================
+{
+  "topic": "布偶狗",
+  "content_type": "诗",
+  "poem": "《布偶狗》\n绒身软耳坐窗台，不吠不奔待主来。\n夜半犹陪灯下影，忠心一片布中裁。"
+}
+============================== -> joke_res <- ==============================
+{
+  "topic": "布偶狗",
+  "content_type": "笑话",
+  "joke": "“你家布偶狗会握手吗？”\n“会，特别标准。”\n“这么厉害？”\n“是啊，就是每次握完，我都得拿针线把它的爪子缝回去。”"
+}
+~~~
+
+~~~mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	node_a(node_a)
+	node_b(node_b)
+	__end__([<p>__end__</p>]):::last
+	__start__ -.-> node_a;
+	__start__ -.-> node_b;
+	node_a --> __end__;
+	node_b --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+~~~
+
+- 观察图结构可以发现，<font color='red'>**start指向node_a和node_b的线是虚线，这表示节点的跳转是有条件的，不是固定的**</font>
+
+
+
+
+##### 2.1.2.2 使用path_map
+
+- 如果不希望路由函数直接返回节点名，而是返回业务语义更强的标识，可以使用 **path_map** 进行映射。如下：
+
+```python
+def router(state: OverAllState) -> Literal["a", "b"]: 
+    if "诗" in state["content_type"]: 
+        return "a" 
+    return "b"
+
+builder.add_conditional_edges( 
+    START,
+    router,
+    path_map={ 
+        "a": "node_a", 
+        "b": "node_b", 
+    } 
+)
+```
+
+- 此时返回的 **"a"** 和 **"b"** 可以不是图中已注册的节点名称，但要通过 **path_map** 映射到正确的节点
+
+- 这种写法的好处是：
+  - 路由函数可以返回业务含义更清晰的标签；
+  - 图节点名称可以保持工程化命名；
+  - 渲染图结构时，边上可以显示路由标签，使图更容易理解。
+
+- **示例如下**
+
+~~~python
+import os
+from typing import TypedDict, Literal
+
+from langchain.chat_models import init_chat_model
+from langgraph.graph import StateGraph, START, END
+from langchain.messages import HumanMessage
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
+CHAT_API_KEY=os.getenv("CHAT_API_KEY")
+CHAT_BASE_URL=os.getenv("CHAT_BASE_URL")
+CHAT_MODEL=os.getenv("CHAT_MODEL")
+
+model = init_chat_model(
+    base_url=CHAT_BASE_URL,
+    model_provider="openai",
+    api_key=CHAT_API_KEY,
+    model=CHAT_MODEL
+)
+
+class OverAllState(TypedDict):
+    topic: str
+    content_type: str
+    poem: str
+    ci_poem: str
+    joke: str
+
+def node_a(state: OverAllState) -> OverAllState:
+    poem = model.invoke([HumanMessage(f"写一首关于 {state['topic']} 的七言绝句")]).content
+
+    return {
+        "poem": poem
+    }
+
+def node_b(state: OverAllState) -> OverAllState:
+    joke = model.invoke([HumanMessage(f"写一个关于 {state['topic']} 的笑话")]).content
+
+    return {
+        "joke": joke
+    }
+
+def router(state: OverAllState) -> Literal["a", "b"]:
+    if "诗" in state["content_type"]:
+        return "a"
+    return "b"
+
+builder = StateGraph(state_schema=OverAllState)
+builder.add_node("node_a", node_a)
+builder.add_node("node_b", node_b)
+builder.add_conditional_edges(
+    START,
+    router,
+    path_map={
+        "a": "node_a",
+        "b": "node_b",
+    }
+)
+builder.add_edge("node_a", END)
+builder.add_edge("node_b", END)
+
+graph = builder.compile()
+poem_res = graph.invoke({"topic": "布偶狗", "content_type": "诗"})
+joke_res = graph.invoke({"topic": "布偶狗", "content_type": "笑话"})
+
+print('=' * 30, '-> poem_res <-', '=' * 30)
+print(poem_res)
+print('=' * 30, '-> joke_res <-', '=' * 30)
+print(joke_res)
+
+raw_mermaid = graph.get_graph().draw_mermaid()
+print(raw_mermaid)
+~~~
+
+- 输出
+
+~~~text
+============================== -> poem_res <- ==============================
+{
+  "topic": "布偶狗",
+  "content_type": "诗",
+  "poem": "《布偶狗》绒身软耳坐窗台，不吠不奔待主来。夜半犹陪灯下影，忠心一片布中裁。"
+}
+============================== -> joke_res <- ==============================
+{
+  "topic": "布偶狗",
+  "content_type": "笑话",
+  "joke": "我家布偶狗特别会看家。昨天小偷一进门，它就冲了上去——“咬他了？”“没有，它从沙发上滚下来，躺平装死。小偷吓得当场跪下：‘大哥，我还没动手呢，你别碰瓷啊！’”"
+}
+~~~
+
+~~~mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	node_a(node_a)
+	node_b(node_b)
+	__end__([<p>__end__</p>]):::last
+	__start__ -. a .-> node_a;
+	__start__ -. b .-> node_b;
+	node_a --> __end__;
+	node_b --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+~~~
+
+- 观察图结构可以发现，__start__指向node_a和node_b的虚线上出现了文本a和b，它们是路由函数返回的名称，通过path_map映射到具体的下游节点
+
+
+
+
+##### 2.1.2.3 同时路由至多个节点
+
+- **add_conditional_edges** 也支持一次路由到多个下游节点。
+
+- <font color='red'>**不用path_map**</font>
+
+  ~~~python
+  import os
+  from typing import TypedDict, Literal, Sequence
+  
+  from langchain.chat_models import init_chat_model
+  from langgraph.graph import StateGraph, START, END
+  from langchain.messages import HumanMessage
+  
+  from dotenv import load_dotenv
+  load_dotenv(override=True)
+  
+  CHAT_API_KEY=os.getenv("CHAT_API_KEY")
+  CHAT_BASE_URL=os.getenv("CHAT_BASE_URL")
+  CHAT_MODEL=os.getenv("CHAT_MODEL")
+  
+  model = init_chat_model(
+      base_url=CHAT_BASE_URL,
+      model_provider="openai",
+      api_key=CHAT_API_KEY,
+      model=CHAT_MODEL
+  )
+  
+  class OverAllState(TypedDict):
+      topic: str
+      content_type: str
+      poem: str
+      ci_poem: str
+      joke: str
+  
+  def node_a(state: OverAllState) -> OverAllState:
+      poem = model.invoke([HumanMessage(f"写一首关于 {state['topic']} 的七言绝句")]).content
+  
+      return {
+          "poem": poem
+      }
+  
+  def node_b(state: OverAllState) -> OverAllState:
+      joke = model.invoke([HumanMessage(f"写一个关于 {state['topic']} 的笑话")]).content
+  
+      return {
+          "joke": joke
+      }
+  
+  def node_c(state: OverAllState) -> OverAllState:
+      ci_poem = model.invoke([HumanMessage(f"写一首关于 {state['topic']} 的词")]).content
+  
+      return {
+          "ci_poem": ci_poem
+      }
+  
+  def router(state: OverAllState) -> Sequence[Literal["node_a", "node_b", "node_c"]]:
+      if "诗" in state["content_type"]:
+          return ["node_a", "node_c"]
+      return ["node_b", "node_c"]
+  
+  builder = StateGraph(state_schema=OverAllState)
+  builder.add_node("node_a", node_a)
+  builder.add_node("node_b", node_b)
+  builder.add_node("node_c", node_c)
+  builder.add_conditional_edges(
+      START,
+      router
+  )
+  builder.add_edge("node_a", END)
+  builder.add_edge("node_b", END)
+  builder.add_edge("node_c", END)
+  
+  graph = builder.compile()
+  poem_res = graph.invoke({"topic": "布偶狗", "content_type": "诗"})
+  joke_res = graph.invoke({"topic": "布偶狗", "content_type": "笑话"})
+  
+  print('=' * 30, '-> poem_res <-', '=' * 30)
+  print(poem_res)
+  print('=' * 30, '-> joke_res <-', '=' * 30)
+  print(joke_res)
+  
+  raw_mermaid = graph.get_graph().draw_mermaid()
+  print(raw_mermaid)
+  ~~~
+
+  - 输出
+
+  ~~~python
+  ============================== -> poem_res <- ==============================
+  {
+      "topic": "布偶狗",
+      "content_type": "诗",
+      "poem": "《咏布偶狗》\n铁骨棉裘本异俦，垂头摇尾学温柔。\n非关皮相失真性，恐向人间惹旧愁。\n\n赏析：这首作品以布偶狗为题，通过“铁骨棉裘”的悖论意象，巧妙揭示材质与形态的错位。后两句笔锋一转，从拟态之“学温柔”深入至本真之“失真性”，结句“恐向人间惹旧愁”更以物喻人，赋予玩偶以灵性，暗含对世情虚伪的讽喻，余韵悠长。",
+      "ci_poem": "《捣练子·布偶狗》\n针线巧，布绒柔。静卧妆台伴月幽。未解铃铛摇夜语，却随清梦上云舟。\n\n注：我的仿作将布偶狗拟人化，通过“针线巧，布绒柔”展现其手工质感，“伴月幽”营造静谧氛围。末句“随清梦上云舟”暗合现代人渴望逃离现实的隐喻，既保留古典词牌的意境美，又赋予布偶狗超越物象的情感寄托。"
+  }
+  
+  ============================== -> joke_res <- ==============================
+  {
+      "topic": "布偶狗",
+      "content_type": "笑话",
+      "ci_poem": "《鹧鸪天·布偶狗》\n绒目含星尾作虹，垂蹄静卧笑春风。\n无人自戏绒球转，得主频摇铃铎浓。\n\n偎暖日，扑帘栊。娇憨总在爪痕中。\n痴心不解浮生事，一抱虚温万事空。\n\n注：本词以布偶狗为意象，通过“绒目含星”、“垂蹄静卧”等细节摹写其柔顺之态。下阕“偎暖日”、“扑帘栊”拟人化笔法，寄寓物我相忘之趣。结句“一抱虚温”暗喻繁华终归寂灭之理，将玩偶之趣升华为对生命本真的哲思。",
+      "joke": "小明带他的布偶狗去宠物医院，医生检查后说：“你这狗没心跳没呼吸，已经死了。”\n小明急了：“不可能！它刚刚还对我摇尾巴！”\n医生叹了口气：“那是你兜里的钥匙串，走起路来叮当响，它尾巴上的铃铛在共振。”\n小明沉默片刻，掏出手机拍了张照发朋友圈：“我的狗死了，但它的尾巴还在听我走路。”\n评论区炸了：“建议主人也去查查脑子，可能也共振坏了。”"
+  }
+  ~~~
+
+  ~~~mermaid
+  graph TD;
+  	__start__(<p>__start__</p>)
+  	node_a(node_a)
+  	node_b(node_b)
+  	node_c(node_c)
+  	__end__(<p>__end__</p>)
+  	__start__ -.-> __end__;
+  	classDef default fill:#f2f0ff,line-height:1.2
+  	classDef first fill-opacity:0
+  	classDef last fill:#bfb6fc
+  ~~~
+
+  - 在这个例子中：
+    - 当 **content_type** 包含 **"诗"** 时，同时触发 **node_a** 和 **node_c**；
+    - 否则同时触发 **node_b** 和 **node_c**
+  - 观察图结构可以发现，node_a、node_b和node_c独立于图结构之外。
+  - 和上一节案例相比，router函数返回的是序列而非单个节点，渲染器无法推断节点间的映射关系
+
+- <font color='red'>**使用path_map**</font>
+  - 通过 **path_map** 显示声明映射关系，明确下游节点集合，在提升代码可读性的同时，也有助于渲染器正确展示条件边。
+
+  - 当前场景下 **path** 返回值中的字符串就是合法的节点名称，**path_map** 可以是字典
+
+    ```python
+    path_map={
+        "node_a": "node_a",
+        "node_b": "node_b",
+        "node_c": "node_c",
+    }
+    ```
+
+    - 也可以是列表
+
+    ```python
+    path_map=["node_a", "node_b", "node_c"]
+    ```
+
+    - **完整案例如下**
+
+    ```python
+    import os
+    from typing import TypedDict, Literal, Sequence
+    
+    from langchain.chat_models import init_chat_model
+    from langgraph.graph import StateGraph, START, END
+    from langchain.messages import HumanMessage
+    
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
+    
+    CHAT_API_KEY=os.getenv("CHAT_API_KEY")
+    CHAT_BASE_URL=os.getenv("CHAT_BASE_URL")
+    CHAT_MODEL=os.getenv("CHAT_MODEL")
+    
+    model = init_chat_model(
+        base_url=CHAT_BASE_URL,
+        model_provider="openai",
+        api_key=CHAT_API_KEY,
+        model=CHAT_MODEL
+    )
+    
+    class OverAllState(TypedDict):
+        topic: str
+        content_type: str
+        poem: str
+        ci_poem: str
+        joke: str
+    
+    def node_a(state: OverAllState) -> OverAllState:
+        poem = model.invoke([HumanMessage(f"写一首关于 {state['topic']} 的七言绝句")]).content
+    
+        return {
+            "poem": poem
+        }
+    
+    def node_b(state: OverAllState) -> OverAllState:
+        joke = model.invoke([HumanMessage(f"写一个关于 {state['topic']} 的笑话")]).content
+    
+        return {
+            "joke": joke
+        }
+    
+    def node_c(state: OverAllState) -> OverAllState:
+        ci_poem = model.invoke([HumanMessage(f"写一首关于 {state['topic']} 的词")]).content
+    
+        return {
+            "ci_poem": ci_poem
+        }
+    
+    def router(state: OverAllState) -> Sequence[Literal["node_a", "node_b", "node_c"]]:
+        if "诗" in state["content_type"]:
+            return ["node_a", "node_c"]
+        return ["node_b", "node_c"]
+    
+    builder = StateGraph(state_schema=OverAllState)
+    builder.add_node("node_a", node_a)
+    builder.add_node("node_b", node_b)
+    builder.add_node("node_c", node_c)
+    builder.add_conditional_edges(
+        START,
+        router,
+        path_map={
+            "node_a": "node_a",
+            "node_b": "node_b",
+            "node_c": "node_c",
+        }
+        # path_map=["node_a", "node_b", "node_c"]
+    )
+    builder.add_edge("node_a", END)
+    builder.add_edge("node_b", END)
+    builder.add_edge("node_c", END)
+    
+    graph = builder.compile()
+    poem_res = graph.invoke({"topic": "布偶狗", "content_type": "诗"})
+    joke_res = graph.invoke({"topic": "布偶狗", "content_type": "笑话"})
+    
+    print('=' * 30, '-> poem_res <-', '=' * 30)
+    print(poem_res)
+    print('=' * 30, '-> joke_res <-', '=' * 30)
+    print(joke_res)
+    
+    raw_mermaid = graph.get_graph().draw_mermaid()
+    print(raw_mermaid)
+    ```
+
+    - **输出如下**
+
+    ```python
+    ============================== -> poem_res <- ==============================
+    
+    {
+        "topic": "布偶狗",
+        "content_type": "诗",
+        "poem": "《布偶狗》\n布偶憨然卧锦茵，牵绳随主步香尘。\n偶因客至微昂首，原是无声座上宾。\n\n注：我的创作思路是抓住布偶狗静中有动的特质。首句以“憨然卧锦茵”勾勒其静态萌态，次句“牵绳随主步香尘”暗喻宠物与人的陪伴关系。转句“偶因客至微昂首”捕捉其反应，既保留布偶的拟真特性，又暗示机械性动作。结句“原是无声座上宾”点明其非生物属性，与开篇“布偶”形成闭环。全诗通过动静、真假的微妙转化，赋予静物以灵性。",
+        "ci_poem": "《醉花阴·布偶狗》\n绒耳垂垂星作眸，憨卧小窗幽。棉絮裹憨态，线描眉眼，缝就三分柔。\n旧尘不染春衫袖，伴我度春秋。虽无温舌语，月斜人静，也解倚床头。\n\n注：我以拟人笔法赋予布偶狗灵性，通过“绒耳垂垂”“棉絮裹憨态”等细节勾勒其柔软形态，又于“月斜人静”处暗藏陪伴深情。下阕“旧尘不染”暗喻其纯净守护，末句“解倚床头”更将静物写活，道出玩偶与主人之间无声的慰藉。"
+    }
+    
+    ============================== -> joke_res <- ==============================
+    
+    {
+        "topic": "布偶狗",
+        "content_type": "笑话",
+        "ci_poem": "《南歌子·布偶狗》\n绒耳垂春水，圆睛印月痕。\n棉絮缝成憨态真。\n不向朱门摇尾，卧蓬门。\n\n旧线牵云袖，新绒补雪身。\n线头散作泪斑纹。\n但把残年缝进，掌中温。\n\n注：我的布偶狗，是外婆用旧棉裤的棉花和二姐穿小的灯芯绒外套一针一线缝成的。二十年过去，棉絮从它破了洞的耳朵里露出，像吐着舌头。我模仿陆游“我与狸奴不出门”的意境，通过“棉絮缝春水”喻指时光在针脚里流逝，而“线头泪斑”则是故意缝补的裂痕——我们总要在破碎的事物里，重新认出圆满的形状。",
+        "joke": "好的，这是一个关于布偶狗的笑话：\n\n有一只布偶狗，它特别特别懒，懒到什么程度呢？它的主人叫它去捡飞盘，它都懒得动。主人决定训练它，就扔出一个飞盘，大声喊：“布偶，快去捡！”\n\n布偶狗懒洋洋地抬头看了一眼飞盘落在远处，然后又趴下了。主人很生气，又扔了一个，它还是不理。\n\n主人无奈，只好采取了终极手段——假扮成一只会动的布偶狗，自己冲过去把飞盘叼了回来。\n\n布偶狗一看，浑身毛发都惊得炸了起来，它对旁边的一只小花狗低声说：“天哪，你看，那玩意儿居然能自己动！它还是个永动机！吓死狗了，好赖哦！”"
+    }
+    ```
+
+    ~~~mermaid
+    graph TD;
+    	__start__([<p>__start__</p>]):::first
+    	node_a(node_a)
+    	node_b(node_b)
+    	node_c(node_c)
+    	__end__([<p>__end__</p>]):::last
+    	__start__ -.-> node_a;
+    	__start__ -.-> node_b;
+    	__start__ -.-> node_c;
+    	node_a --> __end__;
+    	node_b --> __end__;
+    	node_c --> __end__;
+    	classDef default fill:#f2f0ff,line-height:1.2
+    	classDef first fill-opacity:0
+    	classDef last fill:#bfb6fc
+    ~~~
+
+    - 如图所示，图结构被正确渲染。
 
 
 
 
 
+#### 2.1.3 defer node execution
 
+- 某些情况下，我们希望<font color='red'>**在所有常规任务节点执行完毕后，再进行日志、审计等收尾工作**</font>
+- 此时可以在添加节点时设置defer=True，如下：
 
+~~~python
+builder.add_node("audit_node", audit_node, defer=True)
+~~~
 
+- **defer=True** 的含义是：
 
+- 当前节点不会在其被触发后立即执行，<font color='red'>**而是被延迟到常规图运行流程结束后，再在额外的超步中触发执行**</font>
 
+- 这类节点适合用于：
 
+  - 日志记录；
 
+  - 审计检查；
 
+  - 结果汇总；
 
+  - 收尾清理；
 
+  - 统一校验前面节点是否已完成
 
 
 
+##### 2.1.3.1 底层实现机制
 
 
 
@@ -2095,6 +2806,177 @@ graph TD;
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 五、节点执行与容错机制
+
+- 节点执行失败时，如果未做任何处理，可能导致整个运行图执行失败。<font color='red'>**为了提升运行图的稳定性，处理临时故障、超时、异常恢复以及重复计算等问题**</font>，LangGraph 提供了一系列节点执行与容错机制：重试、超时设置、异常处理和节点缓存。对应关系如下。
+
+| 问题/场景    | 对应机制                    | 机制类型             | 说明                                                         |
+| :----------- | :-------------------------- | :------------------- | :----------------------------------------------------------- |
+| **临时故障** | **重试 Retry**              | **节点容错机制**     | 网络抖动、接口偶发失败、模型服务短暂不可用，可以通过重试机制再次执行节点。 |
+| **超时**     | **超时设置 Timeout**        | **节点容错机制**     | 某个节点执行时间过长，可以通过超时限制避免图运行被长时间阻塞。 |
+| **异常恢复** | **异常处理 Error Handling** | **节点容错机制**     | 节点抛出异常后，通过异常捕获、兜底逻辑、降级返回、路由到错误处理节点等方式恢复流程。 |
+| **重复计算** | **缓存 Cache**              | **节点执行优化机制** | 相同输入反复触发耗时节点，可以通过节点缓存避免重复执行，提高性能。 |
+
+
+
+## 1、LangGraph的节点容错机制
+
+- **LangGraph** 提供了三种异常处理机制
+
+  - <font color='red'>**retries**</font>：重试机制。节点执行失败时，根据重试策略自动重新执行。
+
+  - <font color='red'>**Timeouts**</font>：超时控制。限制单次节点执行的最大等待时间。
+
+  - <font color='red'>**Error Handling**</font>：错误处理。重试次数耗尽后，执行特定的异常处理逻辑。
+
+- 三者的执行顺序如下：
+
+  - 节点开始执行。
+
+  - 如果节点执行超时或抛出异常，本次节点尝试失败。
+
+  - 重试策略 **RetryPolicy** 判断该异常是否需要重试。
+
+  - 如果满足重试条件，并且尚未达到最大尝试次数，则重新执行节点。
+
+  - 如果重试次数耗尽，节点仍然失败，则进入 **error_handler** 错误处理逻辑。
+
+  - 如果没有配置错误处理逻辑，则异常继续向外抛出，可能导致整个图运行失败。
+
+- 需要注意：
+
+  - **重试机制** 是当前版本中最常用、最基础的节点容错能力。
+
+  - **超时控制** 和 **错误处理** 是较新版本引入的能力，要求 **langgraph>=1.2**。
+
+
+
+
+
+## 2、重试机制
+
+### 2.1 基本用法
+
+- 重试机制用于处理临时性异常，例如网络抖动、远程服务短暂不可用、API 偶发失败等。
+
+- 在添加节点时，可以通过 **retry_policy=** 配置节点的重试策略。
+
+- **示例如下**
+
+~~~python
+from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import RetryPolicy
+
+from requests.exceptions import HTTPError
+from loguru import logger
+
+class EmptyState(TypedDict):
+    pass
+
+def node_a(state: EmptyState) -> EmptyState:
+    logger.info(f"node a 运行")
+    raise HTTPError("网络连接超时...")
+
+builder = StateGraph(state_schema=EmptyState)
+builder.add_node(
+    "node_a",
+    node_a,
+    retry_policy=RetryPolicy(
+        max_attempts=3,
+        jitter=False
+    )
+)
+builder.add_edge(START, "node_a")
+builder.add_edge("node_a", END)
+
+graph = builder.compile()
+
+try:
+    graph.invoke({})
+except HTTPError as e:
+    logger.info("重试次数耗尽: {}", e)
+
+raw_mermaid = graph.get_graph().draw_mermaid()
+print(raw_mermaid)
+~~~
+
+- 输出
+
+~~~bash
+2026-11-03 00:14:43.924 | INFO     | __main__:node_a:12 - node a 运行
+2026-11-03 00:14:44.425 | INFO     | __main__:node_a:12 - node a 运行
+2026-11-03 00:14:45.426 | INFO     | __main__:node_a:12 - node a 运行
+2026-11-03 00:14:45.426 | INFO     | __main__:<module>:32 - 重试次数耗尽: 网络连接超时...
+~~~
+
+~~~mermaid
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	node_a(node_a)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> node_a;
+	node_a --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+~~~
+
+- 本例中：
+  - **max_attempts=3** 表示最多尝试 3 次。
+  - 这 3 次包括首次执行，而不是首次失败后的 3 次重试。
+  - 因此，节点总共会被调用 3 次。
+  - 3 次全部失败后，异常继续向外抛出。
+  - 外层的 **try...except** 捕获该异常，并打印日志
+
+
+
+2.2 
 
 
 
